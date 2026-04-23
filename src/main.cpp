@@ -6,8 +6,8 @@
 
 using namespace ESP32Console;       // Używamy przestrzeni nazw konsoli, by nie pisać przedrostków
 
-#define SS_PIN    5                 // Definicja pinu CS/SDA dla czytnika RFID
-#define RST_PIN   27                // Definicja pinu Reset dla czytnika RFID
+#define SS_PIN    21                 // Definicja pinu CS/SDA dla czytnika RFID
+#define RST_PIN   22               // Definicja pinu Reset dla czytnika RFID
 #define LED_PIN   4                 // Definicja pinu dla diody LED (np. sygnalizacja błędu)
 
 MFRC522 mfrc522(SS_PIN, RST_PIN);   // Tworzymy obiekt czytnika z przypisanymi pinami
