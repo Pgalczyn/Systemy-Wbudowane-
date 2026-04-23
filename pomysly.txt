@@ -1,0 +1,2 @@
+Tryb klienta
+plytka odpytuje serwer na komputerze nie podlaczonym do niej przez API i sprawdza czy uzytkownik ma aktywny status zeby wejsc na silownie .
