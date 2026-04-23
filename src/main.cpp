@@ -1,21 +1,37 @@
 #include <Arduino.h>
 #include <ESP32Console.h>
+#include <MFRC522.h>
+#include <SPI.h>
 #include <stdlib.h>
 
 using namespace ESP32Console;
 
 float accountBalance = 100.0f;
-constexpr uint8_t LED_PIN = 4; // D4 on many ESP32 DevKit boards
-constexpr bool LED_ACTIVE_LOW = true;
+
+constexpr uint8_t DIODE_RED = 4;
+constexpr uint8_t RFID_SS_PIN = 21;
+constexpr uint8_t RFID_RST_PIN = 22;
+
+MFRC522 mfrc522(RFID_SS_PIN, RFID_RST_PIN);
+
+void printUid(const MFRC522::Uid &uid)
+{
+  printf("Card UID:");
+  for (byte i = 0; i < uid.size; ++i)
+  {
+    printf(" %02X", uid.uidByte[i]);
+  }
+  printf("\n");
+}
 
 inline void ledOn()
 {
-  digitalWrite(LED_PIN, LED_ACTIVE_LOW ? LOW : HIGH);
+  digitalWrite(DIODE_RED, LOW);
 }
 
 inline void ledOff()
 {
-  digitalWrite(LED_PIN, LED_ACTIVE_LOW ? HIGH : LOW);
+  digitalWrite(DIODE_RED, HIGH);
 }
 
 // --- Command Handlers ---
@@ -81,14 +97,44 @@ int cmdBlink(int argc, char **argv)
   return EXIT_SUCCESS;
 }
 
+// Callback for "add-card" command
+int cmdAddCard(int argc, char **argv)
+{
+  (void)argc;
+  (void)argv;
+
+  printf("Scanning for card for 5 seconds...\n");
+
+  unsigned long start = millis();
+  while (millis() - start < 5000UL)
+  {
+    if (mfrc522.PICC_IsNewCardPresent() && mfrc522.PICC_ReadCardSerial())
+    {
+      printUid(mfrc522.uid);
+      mfrc522.PICC_HaltA();
+      mfrc522.PCD_StopCrypto1();
+      return EXIT_SUCCESS;
+    }
+
+    delay(50);
+  }
+
+  printf("No card detected.\n");
+  return EXIT_FAILURE;
+}
+
 // --- Console Setup ---
 
 Console console;
 
 void setup()
 {
-  pinMode(LED_PIN, OUTPUT);
+  pinMode(DIODE_RED, OUTPUT);
+
   ledOff();
+
+  SPI.begin();
+  mfrc522.PCD_Init();
 
   // Initialize console UART
   console.begin(115200);
@@ -99,13 +145,13 @@ void setup()
   console.registerCommand("deposit", cmdDeposit, "Add funds (e.g. deposit 50)");
   console.registerCommand("withdraw", cmdWithdraw, "Subtract funds (e.g. withdraw 20)");
   console.registerCommand("blink", cmdBlink, "Turn LED on for 0.5 s");
+  console.registerCommand("add-card", cmdAddCard, "Wait 5 seconds for a card and print its UID");
 
-  printf("\n--- ESP32 Professional CLI Ready ---\n");
+  printf("\n--- ESP32 Wallet CLI Ready ---\n");
   printf("Type 'help' to see available commands.\n");
 }
 
 void loop()
 {
-  // Console runs in its own task in this library version.
-  delay(10);
+
 }
