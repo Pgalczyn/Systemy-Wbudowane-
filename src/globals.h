@@ -16,6 +16,8 @@
 extern MFRC522 mfrc522;
 extern MFRC522::MIFARE_Key key;
 extern WiFiManager wifiManager;
+extern WiFiServer telnetServer;
+extern WiFiClient telnetClient;
 
 enum DeviceMode
 {
@@ -25,3 +27,13 @@ enum DeviceMode
 };
 extern DeviceMode currentMode;
 extern String serverAddress;
+
+enum ReceptionState { 
+    RX_SHOW_MENU, 
+    RX_WAIT_FOR_CHOICE, 
+    RX_WAIT_FOR_POINTS, 
+    RX_WAIT_FOR_STATE, 
+    RX_WAIT_FOR_CARD 
+};
+
+extern ReceptionState currentStep;

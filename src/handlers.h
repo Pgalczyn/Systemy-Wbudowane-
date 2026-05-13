@@ -1,3 +1,3 @@
 void handleGateLogic();
 
-void handleReceptionLogic();
+void handleReceptionNonBlocking();

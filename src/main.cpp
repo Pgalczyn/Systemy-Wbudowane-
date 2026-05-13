@@ -2,11 +2,14 @@
 #include "wifi_logic.h"
 #include "handlers.h"
 #include <Preferences.h>
+#include <cmd_tools.h>
 
 MFRC522 mfrc522(SS_PIN, RST_PIN);
 MFRC522::MIFARE_Key key;
 WiFiManager wifiManager;
 DeviceMode currentMode = MODE_NONE;
+WiFiServer telnetServer(23);
+WiFiClient telnetClient;
 
 bool buttonPressed = false;
 String selectedWorkMode = DEFAULT_WORK_MODE;
@@ -15,6 +18,7 @@ Preferences preferences;
 
 void checkIfExternalReset();
 void saveWorkMode();
+void handleTelnet();
 
 String buildWorkModeHtml(const String &currentMode)
 {
@@ -54,14 +58,14 @@ void setup()
   // TRY CONNECTING TO WIFI OR START CONFIG PORTAL
   if (!wifiManager.autoConnect("ESP32-Config"))
   {
-    Serial.println("Couldn't connect to WiFi. Restarting in 2 seconds...");
+    logMsg("Couldn't connect to WiFi. Restarting in 2 seconds...\n");
     delay(2000);
     ESP.restart();
   }
 
-  Serial.println("Wifi connected!");
-  Serial.printf("Assigned IP address: %s\n", WiFi.localIP().toString().c_str());
-  Serial.printf("Selected work mode: %s\n", selectedWorkMode.c_str());
+  logMsg("Wifi connected!\n");
+  logMsg("Assigned IP address: %s\n", WiFi.localIP().toString().c_str());
+  logMsg("Selected work mode: %s\n", selectedWorkMode.c_str());
   if (selectedWorkMode == "GATE")
   {
     currentMode = MODE_GATE;
@@ -76,14 +80,19 @@ void setup()
   for (byte i = 0; i < 6; i++)
     key.keyByte[i] = 0xFF;
 
-  Serial.println("System ready.");
+  logMsg("System ready.\n");
+
+  telnetServer.begin();
+  telnetServer.setNoDelay(true);
 }
 
 void loop()
 {
+  handleTelnet();
+
   if (currentMode != MODE_NONE && !isWifiConnected())
   {
-    Serial.println("Wifi disconnected - restarting system...");
+    logMsg("Wifi disconnected - restarting system...\n");
     delay(1000);
     ESP.restart();
   }
@@ -98,7 +107,7 @@ void loop()
     }
     else if (currentMode == MODE_RECEPTION)
     {
-      handleReceptionLogic();
+      handleReceptionNonBlocking();
     }
   }
 
@@ -109,13 +118,13 @@ void checkIfExternalReset()
 {
   if (digitalRead(BOOT_BTN) == LOW && !buttonPressed)
   {
-    Serial.println("BOOT button PRESSED.");
+    logMsg("BOOT button PRESSED.\n");
     buttonPressed = true;
     delay(100);
 
     if (digitalRead(BOOT_BTN) == LOW)
     {
-      Serial.println("Resetting WiFi settings...");
+      logMsg("Resetting WiFi settings...\n");
       wifiManager.resetSettings();
       delay(500);
       ESP.restart();
@@ -123,7 +132,7 @@ void checkIfExternalReset()
   }
   else if (digitalRead(BOOT_BTN) == HIGH && buttonPressed)
   {
-    Serial.println("BOOT button RELEASED.");
+    logMsg("BOOT button RELEASED.\n");
     buttonPressed = false;
   }
 }
@@ -144,5 +153,29 @@ void saveWorkMode()
       preferences.putString(PARAM_SERVER_ADDR, serverAddress);
     }
     preferences.end();
+  }
+}
+
+
+
+void handleTelnet()
+{
+  if (telnetServer.hasClient())
+  {
+    // Ktoś próbuje się połączyć!
+    WiFiClient newClient = telnetServer.available();
+    Serial.println("\n[DEBUG] Wykryto probe polaczenia Telnet!");
+
+    if (!telnetClient || !telnetClient.connected())
+    {
+      telnetClient = newClient;
+      telnetClient.println("\n=== ESP32 REMOTE TERMINAL ===");
+      Serial.println("[DEBUG] Klient zaakceptowany i polaczony.");
+    }
+    else
+    {
+      Serial.println("[DEBUG] Odrzucono polaczenie - ktos inny juz jest polaczony.");
+      newClient.stop();
+    }
   }
 }
