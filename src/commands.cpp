@@ -14,6 +14,7 @@ int cmdReception(int argc, char** argv)
 
     currentMode = MODE_RECEPTION;
     printf("Mode: RECEPTION active.\n");
+    showPrompt();
     return 0;
 }
 
@@ -27,6 +28,7 @@ int cmdGate(int argc, char** argv)
 
     currentMode = MODE_GATE;
     printf("Mode: GATE active.\n");
+    showPrompt();
     return 0;
 }
 
@@ -35,6 +37,7 @@ int cmdWifi(int argc, char** argv)
     if (WiFi.status() == WL_CONNECTED)
     {
         printf("Już połączono z: %s (IP: %s)\n", WiFi.SSID().c_str(), WiFi.localIP().toString().c_str());
+        return 0;
     }
 
     printf("Skanowanie sieci...\n");

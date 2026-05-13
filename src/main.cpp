@@ -1,4 +1,5 @@
 #include "globals.h"
+#include "cmd_prompt.h"
 #include "commands.h"
 #include "rfid_logic.h"
 
@@ -24,6 +25,7 @@ void setup()
   shell.addCommand(F("gate"), cmdGate);
 
   printf("\n--- ESP32 System CLI Ready ---\n");
+  showPrompt();
 }
 
 void loop()
