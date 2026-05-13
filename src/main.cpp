@@ -1,8 +1,8 @@
-#include <Arduino.h>                // Podstawowa biblioteka środowiska Arduino
-#include <ESP32Console.h>           // Biblioteka do obsługi terminala CLI na ESP32
-#include <SPI.h>                    // Biblioteka do komunikacji szeregowej SPI z czytnikiem
-#include <MFRC522.h>                // Biblioteka do obsługi czytnika RFID RC522
-#include <stdlib.h>                 // Standardowa biblioteka C (potrzebna do atoi)
+#include <Arduino.h>
+#include <ESP32Console.h>
+#include <MFRC522.h>
+#include <SPI.h>
+#include <stdlib.h>
 
 using namespace ESP32Console;       // Używamy przestrzeni nazw konsoli, by nie pisać przedrostków
 
@@ -23,6 +23,16 @@ bool authenticateCard() {
   // Próba autoryzacji do wybranego bloku za pomocą Klucza A
   MFRC522::StatusCode status = mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, TARGET_BLOCK, &key, &(mfrc522.uid));
   return (status == MFRC522::STATUS_OK);                 // Zwróć prawdę, jeśli autoryzacja się udała
+}
+
+void printUid(const MFRC522::Uid &uid)
+{
+  printf("Card UID:");
+  for (byte i = 0; i < uid.size; ++i)
+  {
+    printf(" %02X", uid.uidByte[i]);
+  }
+  printf("\n");
 }
 
 // --- Funkcja wyciągająca punkty z pamięci karty ---
@@ -119,7 +129,8 @@ void setup() {
   console.registerCommand("deposit", cmdDeposit, "Dodaj punkty");   // Powiązanie wpłaty
   console.registerCommand("withdraw", cmdWithdraw, "Odejmij punkty"); // Powiązanie wypłaty
 
-  printf("\n--- System gotowy. Sektor 15 (Blok 60) ---\n"); // Powitanie w terminalu
+  printf("\n--- ESP32 Wallet CLI Ready ---\n");
+  printf("Type 'help' to see available commands.\n");
 }
 
 void loop() {
