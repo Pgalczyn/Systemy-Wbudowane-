@@ -57,12 +57,6 @@ void handleReceptionLogic()
     if (!authenticateCard())
         return;
 
-    if (!isWifiConnected())
-    {
-        stopComm();
-        return;
-    }
-
     String uidHex = uidToHexString();
 
     printf("\n--- RECEPCJA ---\n");
