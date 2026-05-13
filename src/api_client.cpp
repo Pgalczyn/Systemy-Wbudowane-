@@ -1,4 +1,5 @@
 #include "api_client.h"
+#include "globals.h"
 #include <HTTPClient.h>
 #include <WiFi.h>
 
@@ -6,7 +7,7 @@ const String SERVER_URL = "http://192.168.1.100:5000/api";
 
 String apiCall(String method, String endpoint, String payload) {
     if (WiFi.status() != WL_CONNECTED) {
-        printf("API: No WiFi connection!\n");
+        consolePrintf("API: No WiFi connection!\n");
         return "ERROR_WIFI";
     }
 
@@ -25,7 +26,7 @@ String apiCall(String method, String endpoint, String payload) {
     if (httpCode > 0) {
         response = http.getString();
     } else {
-        printf("HTTP Error: %s\n", http.errorToString(httpCode).c_str());
+        consolePrintf("HTTP Error: %s\n", http.errorToString(httpCode).c_str());
     }
 
     http.end();

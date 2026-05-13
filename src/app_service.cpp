@@ -1,3 +1,4 @@
+#include "globals.h"
 #include "app_service.h"
 #include "api_client.h"
 #include <ArduinoJson.h>
@@ -58,7 +59,7 @@ bool modifyPoints(String uid, int32_t amount)
         JsonDocument resDoc;
         deserializeJson(resDoc, resp);
         int newTotal = resDoc["new_total"];
-        printf("Punkty zaktualizowane. Obecnie: %d\n", newTotal);
+        consolePrintf("Punkty zaktualizowane. Obecnie: %d\n", newTotal);
         return true;
     }
     return false;

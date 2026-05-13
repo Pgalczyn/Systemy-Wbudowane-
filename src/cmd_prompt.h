@@ -1,5 +1,5 @@
 #pragma once
 #include <Arduino.h>
 
-String readStringWithEcho(const char* prompt);
-void showPrompt();
+void handleWebSerialInput(const String& msg);
+String readStringWithEcho(const char* prompt, bool echo = true);

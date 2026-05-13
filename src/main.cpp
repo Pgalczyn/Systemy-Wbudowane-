@@ -1,9 +1,9 @@
 #include "globals.h"
 #include "cmd_prompt.h"
-#include "commands.h"
 #include "rfid_logic.h"
 #include "wifi_logic.h"
 #include <Preferences.h>
+#include <WiFi.h>
 #include <WiFiManager.h>
 
 MFRC522 mfrc522(SS_PIN, RST_PIN);
@@ -11,10 +11,10 @@ MFRC522::MIFARE_Key key;
 WiFiManager wifiManager;
 DeviceMode currentMode = MODE_NONE;
 
-
 bool buttonPressed = false;
 String selectedWorkMode = "GATE";
 Preferences preferences;
+bool useRFID = false; // set to true to enable RFID-driven flows
 
 void saveWorkMode()
 {
@@ -34,17 +34,16 @@ String buildWorkModeHtml(const String &currentMode)
   html += currentMode == "GATE"
               ? "<option value='GATE' selected>GATE</option>"
               : "<option value='GATE'>GATE</option>";
-  html += currentMode == "REGISTER"
-              ? "<option value='REGISTER' selected>REGISTER</option>"
-              : "<option value='REGISTER'>REGISTER</option>";
+  html += currentMode == "RECEPTION"
+              ? "<option value='RECEPTION' selected>RECEPTION</option>"
+              : "<option value='RECEPTION'>RECEPTION</option>";
   html += "</select>";
   return html;
 }
 
 void setup()
 {
-  Serial.begin(9600);
-
+  Serial.begin(115200);
   pinMode(BOOT_BTN, INPUT_PULLUP);
 
   preferences.begin("app", false);
@@ -56,25 +55,22 @@ void setup()
   wifiManager.addParameter(&custom_field);
   wifiManager.setSaveParamsCallback(saveWorkMode);
 
-  Serial.println("Lacze do zapamietanego WiFi...");
   if (!wifiManager.autoConnect("ESP32-Config"))
   {
-    Serial.println("Error connecting to WiFi / portal...");
     delay(2000);
     ESP.restart();
   }
 
-  Serial.println("Połączono z WiFi!");
-  Serial.print("Adres IP: ");
-  Serial.println(WiFi.localIP());
+  setupWebConsole();
 
-  Serial.print("Wybrany tryb pracy: ");
-  Serial.println(selectedWorkMode);
+  consolePrintf("Połączono z WiFi!\n");
+  consolePrintf("Adres IP: %s\n", WiFi.localIP().toString().c_str());
+  consolePrintf("Wybrany tryb pracy: %s\n", selectedWorkMode.c_str());
   if (selectedWorkMode == "GATE")
   {
     currentMode = MODE_GATE;
   }
-  else if (selectedWorkMode == "REGISTER")
+  else if (selectedWorkMode == "RECEPTION")
   {
     currentMode = MODE_RECEPTION;
   }
@@ -84,27 +80,27 @@ void setup()
   for (byte i = 0; i < 6; i++)
     key.keyByte[i] = 0xFF;
 
-  Serial.println("System ready.");
+  consolePrintf("System ready.\n");
 }
 
 void loop()
 {
   if (currentMode != MODE_NONE && !isWifiConnected())
   {
-    Serial.println("WiFi rozlaczone - restart systemu...");
+    consolePrintf("WiFi rozlaczone - restart systemu...\n");
     delay(1000);
     ESP.restart();
   }
 
   if (digitalRead(BOOT_BTN) == LOW && !buttonPressed)
   {
-    Serial.println("BOOT button PRESSED (LOW detected)");
+    consolePrintf("BOOT button PRESSED (LOW detected)\n");
     buttonPressed = true;
     delay(100);
     
     if (digitalRead(BOOT_BTN) == LOW)
     {
-      Serial.println("Resetting WiFi settings...");
+      consolePrintf("Resetting WiFi settings...\n");
       wifiManager.resetSettings();
       delay(500);
       ESP.restart();
@@ -112,7 +108,7 @@ void loop()
   }
   else if (digitalRead(BOOT_BTN) == HIGH && buttonPressed)
   {
-    Serial.println("BOOT button RELEASED");
+    consolePrintf("BOOT button RELEASED\n");
     buttonPressed = false;
   }
 
