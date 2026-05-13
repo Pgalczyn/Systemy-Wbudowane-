@@ -2,4 +2,3 @@
 #include <Arduino.h>
 
 String readStringWithEcho(const char* prompt);
-void showPrompt();

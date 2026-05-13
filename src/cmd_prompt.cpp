@@ -32,19 +32,3 @@ String readStringWithEcho(const char* prompt) {
         yield(); // Żeby Wi-Fi nie zdechło w tle
     }
 }
-
-void showPrompt()
-{
-    switch (currentMode)
-    {
-    case MODE_NONE:
-        Serial.print(F("> "));
-        break;
-    case MODE_RECEPTION:
-        Serial.print(F("[RECEPTION] > "));
-        break;
-    case MODE_GATE:
-        Serial.print(F("[GATE] > "));
-        break;
-    }
-}

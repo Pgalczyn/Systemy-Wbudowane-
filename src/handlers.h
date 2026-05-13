@@ -1,0 +1,3 @@
+void handleGateLogic();
+
+void handleReceptionLogic();

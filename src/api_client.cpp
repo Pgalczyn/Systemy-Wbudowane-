@@ -1,20 +1,29 @@
 #include "api_client.h"
 #include <HTTPClient.h>
-#include <WiFi.h>
-
-const String SERVER_URL = "http://192.168.1.100:5000/api";
+#include "wifi_logic.h"
+#include "globals.h"
 
 String apiCall(String method, String endpoint, String payload) {
-    if (WiFi.status() != WL_CONNECTED) {
-        printf("API: No WiFi connection!\n");
-        return "ERROR_WIFI";
+    if (!isWifiConnected()) {
+        Serial.println("Cannot make API call: WiFi not connected.");
+        return "???ERROR_WIFI_DISCONNECTED???";
+    }
+
+    if (serverAddress.length() == 0) {
+        Serial.println("API Error: Server address is empty!");
+        return "ERROR_EMPTY_ADDRESS";
     }
 
     HTTPClient http;
-    http.begin(SERVER_URL + endpoint);
+
+    String fullUrl = serverAddress;
+    if (!fullUrl.endsWith("/") && !endpoint.startsWith("/")) {
+        fullUrl += "/";
+    }
+    fullUrl += endpoint;
+
+    http.begin(fullUrl);
     http.addHeader("Content-Type", "application/json");
-    // Tu możesz dodać API-KEY jeśli serwer go wymaga:
-    // http.addHeader("X-API-Key", "twoj-klucz");
 
     int httpCode = 0;
     if (method == "GET") httpCode = http.GET();
@@ -25,7 +34,7 @@ String apiCall(String method, String endpoint, String payload) {
     if (httpCode > 0) {
         response = http.getString();
     } else {
-        printf("HTTP Error: %s\n", http.errorToString(httpCode).c_str());
+        Serial.printf("HTTP Error (%s): %s\n", fullUrl.c_str(), http.errorToString(httpCode).c_str());
     }
 
     http.end();

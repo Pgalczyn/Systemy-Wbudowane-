@@ -3,6 +3,4 @@
 
 bool authenticateCard();
 void stopComm();
-
-void handleGateLogic();
-void handleReceptionLogic();
+String uidToHexString();
