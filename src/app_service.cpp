@@ -1,19 +1,25 @@
 #include "app_service.h"
 #include "api_client.h"
 #include <ArduinoJson.h>
-
-bool registerMember(String name, String surname, String gymMembershipStarts, String gymMembershipEnds, String coffeePoints)
+//bool registerMember(String name, String surname, String gymMembershipStarts, String gymMembershipEnds,String email, String coffeePoints)
+bool registerMember()
 {
     JsonDocument doc;
-
+/*
     doc["name"] = name;
     doc["surname"] = surname;
-    doc["email"] = "student@agh.edu.pl";
+    doc["email"] = email;
     doc["gymMembershipStarts"] = gymMembershipStarts;
     doc["gymMembershipEnds"] = gymMembershipEnds;
-
     doc["coffeePoints"] = coffeePoints.toInt();
+*/
 
+    doc["name"] = "pawel";
+    doc["surname"] = "gala";
+    doc["email"] = email;
+    doc["gymMembershipStarts"] = "2026-11-31T23:59:59.999Z";
+    doc["gymMembershipEnds"] = "2026-12-31T23:59:59.999Z";
+    doc["coffeePoints"] = 1000;
     String payload;
     serializeJson(doc, payload);
 
