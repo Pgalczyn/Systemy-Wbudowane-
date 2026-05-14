@@ -6,6 +6,8 @@
 #define SS_PIN 21
 #define RST_PIN 22
 #define BOOT_BTN 0
+#define LED_RED 4 // D4 - Active Low
+#define LED_GREEN 5   // D5 - Active Low
 
 #define PREFS_APP "app"
 #define PARAM_WORK_MODE "work_mode"
@@ -28,16 +30,25 @@ enum DeviceMode
 extern DeviceMode currentMode;
 extern String serverAddress;
 
-enum ReceptionState { 
-    RX_SHOW_MENU, 
-    RX_WAIT_FOR_CHOICE, 
+enum GateState
+{
+    GATE_WAITING_CARD,
+    GATE_PROCESSING,
+    GATE_SUCCESS,
+    GATE_FAILURE
+};
+
+enum ReceptionState
+{
+    RX_SHOW_MENU,
+    RX_WAIT_FOR_CHOICE,
     RX_WAIT_FOR_NAME,
     RX_WAIT_FOR_SURNAME,
     RX_WAIT_FOR_EMAIL,
-    RX_WAIT_FOR_POINTS, 
-    RX_WAIT_FOR_STATE, 
-    RX_WAITING_FOR_CARD_MSG,  // Show message once
-    RX_WAIT_FOR_CARD           // Wait for card or cancel
+    RX_WAIT_FOR_POINTS,
+    RX_WAIT_FOR_STATE,
+    RX_WAITING_FOR_CARD_MSG, // Show message once
+    RX_WAIT_FOR_CARD         // Wait for card or cancel
 };
 
 extern ReceptionState currentStep;

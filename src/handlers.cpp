@@ -4,26 +4,12 @@
 #include "telnet_tools.h"
 #include "app_service.h"
 
-void handleGateLogic()
-{
-    // todo:
-    // zaczytac detailsy zblizonej karty (odnotowac wejscie w systemie)
-    // jesli blad api -> sprawdzic stan zapisany w karcie
+// GATE MODE VARIABLES
+GateState gateState = GATE_WAITING_CARD;
+unsigned long gateStateChangeTime = 0;
+String gateCurrentUid = "";
 
-    // jesli api zwraca OK -> zapisac nową datę na karcie
-    // zaswiecic zieloną diodę
-
-    // jesli api zwraca ERROR -> zapisac nową datę na karcie
-    // zaswiecic czerwoną diodę
-
-    // NAJLEPIEJ JAKBY KARTA ZOSTALA ZBLIZONA TYLKO RAZ
-    // ALE REQUEST DO API TRWA TROCHE CZASU
-    // JEZELI UZYTKOWNIK ZABIERZE KARTE ZBYT SZYBKO
-    // CZERWONA DIODA POWINNA SIE ZASWIECIC
-    // MOZNA DODAC JAKIES MIGANIE ŻÓŁTĄ DIODĄ, ŻE PROCES TRWA
-    return;
-}
-
+// RECEPTION MODE VARIABLES
 ReceptionState currentStep = RX_SHOW_MENU;
 String lastChoice = "";
 String nameBuffer = "";
@@ -31,6 +17,61 @@ String surnameBuffer = "";
 String emailBuffer = "";
 int32_t pointsBuffer = 0;
 MembershipState stateBuffer = INACTIVE;
+
+void handleGateLogic()
+{
+    switch (gateState)
+    {
+    case GATE_WAITING_CARD:
+        // Always waiting for a card
+        if (authenticateCard())
+        {
+            gateCurrentUid = uidToHexString();
+            printf("Card detected: %s\n", gateCurrentUid.c_str());
+            
+            gateState = GATE_PROCESSING;
+            gateStateChangeTime = millis();
+        }
+        break;
+
+    case GATE_PROCESSING:
+        {
+            // Send API request to check/update member
+            bool success = checkMemberData(gateCurrentUid);
+            
+            if (success)
+            {
+                // Access granted - turn on green LED
+                printf("Access granted for: %s\n", gateCurrentUid.c_str());
+                digitalWrite(LED_GREEN, LOW);   // Active Low - LOW = ON
+                digitalWrite(LED_RED, HIGH);    // Active Low - HIGH = OFF
+                gateState = GATE_SUCCESS;
+            }
+            else
+            {
+                // Access denied or error - turn on red LED
+                printf("Access denied or error for: %s\n", gateCurrentUid.c_str());
+                digitalWrite(LED_RED, LOW);     // Active Low - LOW = ON
+                digitalWrite(LED_GREEN, HIGH);  // Active Low - HIGH = OFF
+                gateState = GATE_FAILURE;
+            }
+            gateStateChangeTime = millis();
+        }
+        break;
+
+    case GATE_SUCCESS:
+    case GATE_FAILURE:
+        // Keep LED on for 2 seconds
+        if (millis() - gateStateChangeTime > 2000)
+        {
+            digitalWrite(LED_GREEN, HIGH);  // Active Low - HIGH = OFF
+            digitalWrite(LED_RED, HIGH);    // Active Low - HIGH = OFF
+            stopComm();
+            gateState = GATE_WAITING_CARD;
+        }
+        break;
+    }
+}
 
 void handleReceptionNonBlocking()
 {

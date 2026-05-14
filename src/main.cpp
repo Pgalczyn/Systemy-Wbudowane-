@@ -37,6 +37,10 @@ void setup()
 {
   Serial.begin(115200);
   pinMode(BOOT_BTN, INPUT_PULLUP);
+  pinMode(LED_GREEN, OUTPUT);
+  pinMode(LED_RED, OUTPUT);
+  digitalWrite(LED_GREEN, HIGH);  // Active Low - HIGH = OFF
+  digitalWrite(LED_RED, HIGH);    // Active Low - HIGH = OFF
 
   // GET SAVED CONFIG
   preferences.begin(PREFS_APP, true);
@@ -53,6 +57,7 @@ void setup()
   wifiManager.addParameter(&custom_field);
 
   wifiManager.setSaveParamsCallback(saveWorkMode);
+  wifiManager.setConnectTimeout(15);
 
   // TRY CONNECTING TO WIFI OR START CONFIG PORTAL
   if (!wifiManager.autoConnect("ESP32-Config"))
