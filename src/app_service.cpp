@@ -2,15 +2,23 @@
 #include "api_client.h"
 #include <ArduinoJson.h>
 
-bool registerMember(String uid)
+bool registerMember(String name, String surname, String gymMembershipStarts, String gymMembershipEnds, String coffeePoints)
 {
     JsonDocument doc;
-    doc["uid"] = uid;
+
+    doc["name"] = name;
+    doc["surname"] = surname;
+    doc["email"] = "student@agh.edu.pl";
+    doc["gymMembershipStarts"] = gymMembershipStarts;
+    doc["gymMembershipEnds"] = gymMembershipEnds;
+
+    doc["coffeePoints"] = coffeePoints.toInt();
 
     String payload;
     serializeJson(doc, payload);
 
     String resp = apiCall("POST", "/register", payload);
+
     return resp.indexOf("success") != -1;
 }
 
