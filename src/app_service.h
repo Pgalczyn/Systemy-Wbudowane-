@@ -3,7 +3,7 @@
 
 enum MembershipState { ACTIVE, INACTIVE };
 
-bool registerMember();
-bool checkMemberData(String uid);
-bool changeMembershipState(String uid, MembershipState newState);
-bool modifyPoints(String uid, int32_t amount);
+bool registerMember(String cardUid, String name, String surname, String email);
+bool checkMemberData(String cardUid);
+bool changeMembershipState(String cardUid, MembershipState newState);
+bool modifyPoints(String cardUid, int32_t amount);

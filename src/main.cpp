@@ -2,7 +2,7 @@
 #include "wifi_logic.h"
 #include "handlers.h"
 #include <Preferences.h>
-#include <cmd_tools.h>
+#include <telnet_tools.h>
 
 MFRC522 mfrc522(SS_PIN, RST_PIN);
 MFRC522::MIFARE_Key key;
@@ -18,7 +18,6 @@ Preferences preferences;
 
 void checkIfExternalReset();
 void saveWorkMode();
-void handleTelnet();
 
 String buildWorkModeHtml(const String &currentMode)
 {
@@ -58,14 +57,14 @@ void setup()
   // TRY CONNECTING TO WIFI OR START CONFIG PORTAL
   if (!wifiManager.autoConnect("ESP32-Config"))
   {
-    logMsg("Couldn't connect to WiFi. Restarting in 2 seconds...\n");
+    printf("Couldn't connect to WiFi. Restarting in 2 seconds...\n");
     delay(2000);
     ESP.restart();
   }
 
-  logMsg("Wifi connected!\n");
-  logMsg("Assigned IP address: %s\n", WiFi.localIP().toString().c_str());
-  logMsg("Selected work mode: %s\n", selectedWorkMode.c_str());
+  printf("Wifi connected!\n");
+  printf("Assigned IP address: %s\n", WiFi.localIP().toString().c_str());
+  printf("Selected work mode: %s\n", selectedWorkMode.c_str());
   if (selectedWorkMode == "GATE")
   {
     currentMode = MODE_GATE;
@@ -81,14 +80,14 @@ void setup()
   for (byte i = 0; i < 6; i++)
     key.keyByte[i] = 0xFF;
 
-  logMsg("System ready.\n");
+  printf("System ready.\n");
 }
 
 void loop()
 {
   if (currentMode != MODE_NONE && !isWifiConnected())
   {
-    logMsg("Wifi disconnected - restarting system...\n");
+    printf("Wifi disconnected - restarting system...\n");
     delay(1000);
     ESP.restart();
   }
@@ -115,13 +114,13 @@ void checkIfExternalReset()
 {
   if (digitalRead(BOOT_BTN) == LOW && !buttonPressed)
   {
-    logMsg("BOOT button PRESSED.\n");
+    printf("BOOT button PRESSED.\n");
     buttonPressed = true;
     delay(100);
 
     if (digitalRead(BOOT_BTN) == LOW)
     {
-      logMsg("Resetting WiFi settings...\n");
+      printf("Resetting WiFi settings...\n");
       wifiManager.resetSettings();
       delay(500);
       ESP.restart();
@@ -129,7 +128,7 @@ void checkIfExternalReset()
   }
   else if (digitalRead(BOOT_BTN) == HIGH && buttonPressed)
   {
-    logMsg("BOOT button RELEASED.\n");
+    printf("BOOT button RELEASED.\n");
     buttonPressed = false;
   }
 }
@@ -150,22 +149,5 @@ void saveWorkMode()
       preferences.putString(PARAM_SERVER_ADDR, serverAddress);
     }
     preferences.end();
-  }
-}
-
-void handleTelnet()
-{
-  if (telnetServer.hasClient())
-  {
-    WiFiClient newClient = telnetServer.available();
-    if (!telnetClient || !telnetClient.connected())
-    {
-      telnetClient = newClient;
-      logMsg("\r\n=== ESP32 REMOTE TERMINAL ===\n");
-    }
-    else
-    {
-      newClient.stop();
-    }
   }
 }

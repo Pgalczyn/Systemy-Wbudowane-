@@ -2,24 +2,22 @@
 #include "api_client.h"
 #include <ArduinoJson.h>
 //bool registerMember(String name, String surname, String gymMembershipStarts, String gymMembershipEnds,String email, String coffeePoints)
-bool registerMember()
+bool registerMember(String cardUid, String name, String surname, String email)
 {
     JsonDocument doc;
-/*
+    // doc["uid"] = cardUid;
+    // doc["gymMembershipStarts"] = gymMembershipStarts;
+    // doc["gymMembershipEnds"] = gymMembershipEnds;
+    // doc["coffeePoints"] = coffeePoints.toInt();
+
     doc["name"] = name;
     doc["surname"] = surname;
     doc["email"] = email;
-    doc["gymMembershipStarts"] = gymMembershipStarts;
-    doc["gymMembershipEnds"] = gymMembershipEnds;
-    doc["coffeePoints"] = coffeePoints.toInt();
-*/
 
-    doc["name"] = "pawel";
-    doc["surname"] = "gala";
-    doc["email"] = "student@agh.edu.pl";
     doc["gymMembershipStarts"] = "2026-11-31T23:59:59.999Z";
     doc["gymMembershipEnds"] = "2026-12-31T23:59:59.999Z";
     doc["coffeePoints"] = 1000;
+    
     String payload;
     serializeJson(doc, payload);
 
@@ -28,9 +26,9 @@ bool registerMember()
     return resp.indexOf("success") != -1;
 }
 
-bool checkMemberData(String uid)
+bool checkMemberData(String cardUid)
 {
-    String resp = apiCall("GET", "/member/" + uid);
+    String resp = apiCall("GET", "/member/" + cardUid);
 
     if (resp.startsWith("ERROR"))
         return false;
@@ -43,10 +41,10 @@ bool checkMemberData(String uid)
     return doc["exists"] == true;
 }
 
-bool changeMembershipState(String uid, MembershipState newState)
+bool changeMembershipState(String cardUid, MembershipState newState)
 {
     JsonDocument doc;
-    doc["uid"] = uid;
+    doc["uid"] = cardUid;
     doc["status"] = (newState == ACTIVE) ? "ACTIVE" : "INACTIVE";
 
     String payload;
