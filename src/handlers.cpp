@@ -31,6 +31,12 @@ MembershipState stateBuffer = INACTIVE;
 
 void handleReceptionNonBlocking()
 {
+    if (!telnetClient || !telnetClient.connected())
+    {
+        currentStep = RX_SHOW_MENU;
+        return;
+    }
+
     String input = "";
 
     switch (currentStep)
@@ -44,23 +50,24 @@ void handleReceptionNonBlocking()
         if (getCommand(input))
         {
             input.trim();
-            if (input == "1" || input == "2")
-            {
+
+            if (input == "1" || input == "2") {
                 lastChoice = input;
-                logMsg("Hold the card...\n");
+                logMsg("\nHold the card...\n");
                 currentStep = RX_WAIT_FOR_CARD;
             }
-            else if (input == "3")
-            {
+            else if (input == "3") {
                 lastChoice = "3";
-                logMsg("How many points?: ");
+                logMsg("\nHow many points?: ");
                 currentStep = RX_WAIT_FOR_POINTS;
             }
-            else if (input == "4")
-            {
+            else if (input == "4") {
                 lastChoice = "4";
-                logMsg("Status (1=ACT, 0=INA): ");
+                logMsg("\nStatus (1=ACT, 0=INA): ");
                 currentStep = RX_WAIT_FOR_STATE;
+            }
+            else {
+                currentStep = RX_SHOW_MENU;
             }
         }
         break;
@@ -69,7 +76,7 @@ void handleReceptionNonBlocking()
         if (getCommand(input))
         {
             pointsBuffer = input.toInt();
-            logMsg("Hold the card...\n");
+            logMsg("\nHold the card...\n");
             currentStep = RX_WAIT_FOR_CARD;
         }
         break;
@@ -78,7 +85,7 @@ void handleReceptionNonBlocking()
         if (getCommand(input))
         {
             stateBuffer = (input == "1") ? ACTIVE : INACTIVE;
-            logMsg("Hold the card...\n");
+            logMsg("\nHold the card...\n");
             currentStep = RX_WAIT_FOR_CARD;
         }
         break;

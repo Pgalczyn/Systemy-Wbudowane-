@@ -25,20 +25,42 @@ void logMsg(const char* format, ...) {
 
 bool getCommand(String &result) {
     char c = 0;
-    bool isTelnet = false;
 
-    if (Serial.available()) {
-        c = Serial.read();
-    } else if (telnetClient && telnetClient.available()) {
+    if (telnetClient && telnetClient.available()) {
         c = telnetClient.read();
-        isTelnet = true;
+    } else {
+        return false;
     }
 
     if (c == 0) return false;
 
-    // FILTR TELNETU: Ignoruj bajty negocjacji (wszystko powyżej 127)
-    // To usunie te "krzaki" ␟
-    if ((unsigned char)c > 127) return false;
+    // OBSŁUGA TELNETU: rozpoznaj IAC (255) i skonsumuj całe sekwencje negocjacyjne
+    unsigned char uc = (unsigned char)c;
+    if (uc > 127) {
+        if (uc == 255) { // IAC - początek komendy Telnet
+            if (telnetClient && telnetClient.available()) {
+                unsigned char cmd = (unsigned char)telnetClient.read();
+                // WILL(251)/WONT(252)/DO(253)/DONT(254) -> następny bajt to opcja
+                if (cmd >= 251 && cmd <= 254) {
+                    if (telnetClient.available()) telnetClient.read();
+                }
+                // SB (250) - subnegocjacja aż do IAC(255) SE(240)
+                else if (cmd == 250) {
+                    while (telnetClient && telnetClient.available()) {
+                        unsigned char b = (unsigned char)telnetClient.read();
+                        if (b == 255) {
+                            if (telnetClient.available()) {
+                                unsigned char b2 = (unsigned char)telnetClient.read();
+                                if (b2 == 240) break; // SE
+                            } else break;
+                        }
+                    }
+                }
+            }
+        }
+        // ignoruj pozostałe bajty poza ASCII
+        return false;
+    }
 
     if (c == '\r' || c == '\n') {
         result = commandBuffer;
