@@ -16,7 +16,7 @@ bool registerMember()
 
     doc["name"] = "pawel";
     doc["surname"] = "gala";
-    doc["email"] = email;
+    doc["email"] = "student@agh.edu.pl";
     doc["gymMembershipStarts"] = "2026-11-31T23:59:59.999Z";
     doc["gymMembershipEnds"] = "2026-12-31T23:59:59.999Z";
     doc["coffeePoints"] = 1000;

@@ -99,7 +99,7 @@ void handleReceptionNonBlocking()
             if (lastChoice == "1")
                 checkMemberData(uid);
             else if (lastChoice == "2")
-                registerMember(uid);
+                registerMember();
             else if (lastChoice == "3")
                 modifyPoints(uid, pointsBuffer);
             else if (lastChoice == "4")
