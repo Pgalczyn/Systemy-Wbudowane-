@@ -40,7 +40,7 @@ void setup()
   pinMode(BOOT_BTN, INPUT_PULLUP);
 
   // GET SAVED CONFIG
-  preferences.begin("app", true);
+  preferences.begin(PREFS_APP, true);
   selectedWorkMode = preferences.getString(PARAM_WORK_MODE, DEFAULT_WORK_MODE);
   serverAddress = preferences.getString(PARAM_SERVER_ADDR, DEFAULT_API_ADDR);
   preferences.end();
@@ -73,6 +73,7 @@ void setup()
   else if (selectedWorkMode == "RECEPTION")
   {
     currentMode = MODE_RECEPTION;
+    telnetServer.begin();
   }
   SPI.begin();
   mfrc522.PCD_Init();
@@ -81,15 +82,10 @@ void setup()
     key.keyByte[i] = 0xFF;
 
   logMsg("System ready.\n");
-
-  telnetServer.begin();
-  telnetServer.setNoDelay(true);
 }
 
 void loop()
 {
-  handleTelnet();
-
   if (currentMode != MODE_NONE && !isWifiConnected())
   {
     logMsg("Wifi disconnected - restarting system...\n");
@@ -107,6 +103,7 @@ void loop()
     }
     else if (currentMode == MODE_RECEPTION)
     {
+      handleTelnet();
       handleReceptionNonBlocking();
     }
   }
@@ -141,7 +138,7 @@ void saveWorkMode()
 {
   if (wifiManager.server != nullptr)
   {
-    preferences.begin("app", false);
+    preferences.begin(PREFS_APP, false);
     if (wifiManager.server->hasArg(PARAM_WORK_MODE))
     {
       selectedWorkMode = wifiManager.server->arg(PARAM_WORK_MODE);
@@ -156,25 +153,18 @@ void saveWorkMode()
   }
 }
 
-
-
 void handleTelnet()
 {
   if (telnetServer.hasClient())
   {
-    // Ktoś próbuje się połączyć!
     WiFiClient newClient = telnetServer.available();
-    Serial.println("\n[DEBUG] Wykryto probe polaczenia Telnet!");
-
     if (!telnetClient || !telnetClient.connected())
     {
       telnetClient = newClient;
-      telnetClient.println("\n=== ESP32 REMOTE TERMINAL ===");
-      Serial.println("[DEBUG] Klient zaakceptowany i polaczony.");
+      logMsg("\r\n=== ESP32 REMOTE TERMINAL ===\n");
     }
     else
     {
-      Serial.println("[DEBUG] Odrzucono polaczenie - ktos inny juz jest polaczony.");
       newClient.stop();
     }
   }
