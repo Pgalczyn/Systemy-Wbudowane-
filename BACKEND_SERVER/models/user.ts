@@ -7,6 +7,7 @@ export interface IUser extends Document{
     gymMembershipStarts: Date;
     gymMembershipEnds: Date;
     coffeePoints: number;
+    card_UID: string;
 }
 
 const UserSchema = new Schema({
@@ -37,6 +38,11 @@ const UserSchema = new Schema({
     coffeePoints: {
         type: Number,
         required: true,
+    },
+    card_UID: {
+        type: String,
+        required: true,
+        unique: true
     }
 
 })

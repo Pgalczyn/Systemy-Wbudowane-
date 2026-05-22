@@ -37,7 +37,7 @@ void handleGateLogic()
     case GATE_PROCESSING:
         {
             // Send API request to check/update member
-            bool success = checkMemberData(gateCurrentUid);
+            bool success = logGymScan(gateCurrentUid);
             
             if (success)
             {
