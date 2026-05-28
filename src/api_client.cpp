@@ -24,6 +24,7 @@ String apiCall(String method, String endpoint, String payload) {
 
     http.begin(fullUrl);
     http.addHeader("Content-Type", "application/json");
+    http.setTimeout(2000);
 
     int httpCode = 0;
     if (method == "GET") httpCode = http.GET();

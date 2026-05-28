@@ -1,53 +1,30 @@
 #pragma once
 #include <Arduino.h>
 
-enum MembershipState { ACTIVE = 1, INACTIVE = 0};
-
-struct RegisterResult {
-    bool success;
-    String errorMessage;
-    String gymMembershipStarts;
-    String gymMembershipEnds;
-    int32_t coffeePoints;
+enum class ApiResult {
+    API_OK,
+    API_ERROR,
+    API_PARSING_ERROR,
 };
 
-struct MemberDataResult {
-    bool success;
-    String errorMessage;
+enum MembershipState { INACTIVE=0, ACTIVE=1 };
+
+struct RegisterRequest {
+    String cardUid;
     String name;
     String surname;
-    int coffeePoints;
-    String membershipEnds;
-    int totalSessions;
-    String lastEnterDate;
-    bool isAtTheGym;
+    String email;
 };
 
-struct StateChangeResult {
-    bool success;
-    String errorMessage;
+struct MemberDataResponse {
+    uint8_t userId[16];
+    uint32_t validUntil;
+    int32_t points;
+    MembershipState state;
 };
 
-struct ModifyPointsResult {
-    bool success;
-    String errorMessage;
-};
-
-struct LogScanResult {
-    bool success;
-    String errorMessage;
-};
-struct ExtendMembershipResult {
-    bool success;
-    String errorMessage;
-    String newMembershipStarts;
-    String newMembershipEnds;
-    int32_t coffeePoints;
-};
-
-RegisterResult registerMember(String cardUid, String name, String surname, String email);
-MemberDataResult getMemberData(String cardUid);
-StateChangeResult changeMembershipState(String cardUid, MembershipState newState);
-ModifyPointsResult modifyPoints(String card_UID, int32_t amount);
-LogScanResult logGymScan(String card_UID);
-ExtendMembershipResult extendMembership(String cardUid, int months);
+ApiResult registerMember(const RegisterRequest &req, MemberDataResponse &outData);
+ApiResult checkMemberData(const uint8_t* userId, MemberDataResponse &outData, bool isGate = false);
+ApiResult extendValidity(const uint8_t* userId, uint32_t &outNewValidUntil);
+ApiResult modifyPoints(const uint8_t* userId, int32_t amount, int32_t &outNewTotal);
+ApiResult changeMembershipState(const uint8_t* userId, MembershipState newState, MembershipState &outActualState);

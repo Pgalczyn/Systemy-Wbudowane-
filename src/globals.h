@@ -16,7 +16,6 @@
 #define DEFAULT_API_ADDR "http://192.168.1.100:5000/api"
 
 extern MFRC522 mfrc522;
-extern MFRC522::MIFARE_Key key;
 extern WiFiManager wifiManager;
 extern WiFiServer telnetServer;
 extern WiFiClient telnetClient;
@@ -29,27 +28,3 @@ enum DeviceMode
 };
 extern DeviceMode currentMode;
 extern String serverAddress;
-
-enum GateState
-{
-    GATE_WAITING_CARD,
-    GATE_PROCESSING,
-    GATE_SUCCESS,
-    GATE_FAILURE
-};
-
-enum ReceptionState
-{
-    RX_SHOW_MENU,
-    RX_WAIT_FOR_CHOICE,
-    RX_WAIT_FOR_NAME,
-    RX_WAIT_FOR_SURNAME,
-    RX_WAIT_FOR_EMAIL,
-    RX_WAIT_FOR_POINTS,
-    RX_WAIT_FOR_STATE,
-    RX_WAITING_FOR_CARD_MSG, // Show message once
-    RX_WAIT_FOR_CARD,         // Wait for card or cancel
-    RX_WAIT_FOR_MONTHS
-};
-
-extern ReceptionState currentStep;

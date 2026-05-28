@@ -1,7 +1,22 @@
 #include "rfid_logic.h"
 #include "globals.h"
-#include "telnet_tools.h"
-#include "app_service.h"
+
+static MFRC522::MIFARE_Key keyPersonal = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+static MFRC522::MIFARE_Key keyService = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+static MFRC522::MIFARE_Key keyEmail = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+
+uint32_t calculateCRC32(const uint8_t *data, size_t length) {
+    uint32_t crc = 0xFFFFFFFF;
+    for (size_t i = 0; i < length; i++) {
+        crc ^= data[i];
+        for (uint8_t j = 0; j < 8; j++) {
+            if (crc & 1) crc = (crc >> 1) ^ 0xEDB88320;
+            else crc >>= 1;
+        }
+    }
+    return ~crc;
+}
+
 String uidToHexString()
 {
     String uidHex;
@@ -15,17 +30,21 @@ String uidToHexString()
     return uidHex;
 }
 
-bool authenticateCard()
+static bool authenticateBlock(byte blockAddr, MFRC522::MIFARE_Key &key)
+{
+    MFRC522::StatusCode status = mfrc522.PCD_Authenticate(
+        MFRC522::PICC_CMD_MF_AUTH_KEY_A, blockAddr, &key, &(mfrc522.uid));
+
+    return (status == MFRC522::STATUS_OK);
+}
+
+bool isCardPresent()
 {
     if (!mfrc522.PICC_IsNewCardPresent())
         return false;
     if (!mfrc522.PICC_ReadCardSerial())
         return false;
-
-    // Próba autoryzacji do sektora 15 (blok 60)
-    MFRC522::StatusCode status = mfrc522.PCD_Authenticate(
-        MFRC522::PICC_CMD_MF_AUTH_KEY_A, 60, &key, &(mfrc522.uid));
-    return (status == MFRC522::STATUS_OK);
+    return true;
 }
 
 void stopComm()
@@ -34,140 +53,112 @@ void stopComm()
     mfrc522.PCD_StopCrypto1();
 }
 
-// =========================================================
-// --- LOGIKA ZAPISU/ODCZYTU DANYCH BEZPOŚREDNIO NA KARTĘ ---
-// =========================================================
+RfidResult writePersonalData(PersonalData &data) {
+    if (!authenticateBlock(BLOCK_PERSONAL, keyPersonal)) return RFID_AUTH_FAIL;
 
-// Sztywna mapa bloków pamięci (Sektory 1, 2 i 3)
-const byte B_NAME         = 4;
-const byte B_SURNAME      = 5;
-const byte B_POINTS_STAT  = 6;
-const byte B_EMAIL_1      = 8;
-const byte B_EMAIL_2      = 9;
-const byte B_EMAIL_3      = 10;
-const byte B_DATE_START   = 12;
-const byte B_DATE_END     = 13;
+    data.crc = calculateCRC32((uint8_t*)&data, sizeof(PersonalData) - 4);
 
-// Funkcja pomocnicza wykonująca autoryzację i fizyczny zapis 16 bajtów
-bool writeDataToCardBlock(byte blockAddress, byte dataArray[16])
-{
-    MFRC522::MIFARE_Key key;
-    for (byte i = 0; i < 6; i++) key.keyByte[i] = 0xFF;
+    byte buffer[48] = {0};
+    memcpy(buffer, &data, sizeof(PersonalData));
 
-    MFRC522::StatusCode status = mfrc522.PCD_Authenticate(
-        MFRC522::PICC_CMD_MF_AUTH_KEY_A, blockAddress, &key, &(mfrc522.uid));
-
-    if (status != MFRC522::STATUS_OK) return false;
-
-    status = mfrc522.MIFARE_Write(blockAddress, dataArray, 16);
-    if (status != MFRC522::STATUS_OK) return false;
-
-    return true;
+    for (byte i = 0; i < 3; i++) {
+        if (mfrc522.MIFARE_Write(BLOCK_PERSONAL + i, &buffer[i * 16], 16) != MFRC522::STATUS_OK)
+            return RFID_WRITE_FAIL;
+    }
+    return RFID_OK;
 }
 
-bool readDataFromCardBlock(byte blockAddress, byte buffer[18])
-{
-    MFRC522::MIFARE_Key key;
-    for (byte i = 0; i < 6; i++) key.keyByte[i] = 0xFF;
+RfidResult readPersonalData(PersonalData &data) {
+    if (!authenticateBlock(BLOCK_PERSONAL, keyPersonal)) return RFID_AUTH_FAIL;
 
-    MFRC522::StatusCode status = mfrc522.PCD_Authenticate(
-        MFRC522::PICC_CMD_MF_AUTH_KEY_A, blockAddress, &key, &(mfrc522.uid));
+    byte buffer[48] = {0};
+    byte blockBuf[18];
 
-    if (status != MFRC522::STATUS_OK) return false;
-
-    byte size = 18;
-    status = mfrc522.MIFARE_Read(blockAddress, buffer, &size);
-    if (status != MFRC522::STATUS_OK) return false;
-
-    return true;
-}
-
-bool writeRegistrationToCard(String name, String surname, String email, String gymMembershipStarts, String gymMembershipEnds, int32_t points)
-{
-    byte dataName[16] = {0};
-    byte dataSurname[16] = {0};
-    byte dataPointsStatus[16] = {0};
-    byte dataEmail[48] = {0};
-    byte dataStart[16] = {0};
-    byte dataEnd[16] = {0};
-
-    name.getBytes(dataName, 16);
-    surname.getBytes(dataSurname, 16);
-    email.getBytes(dataEmail, 48);
-
-    dataPointsStatus[0] = (points >> 24) & 0xFF;
-    dataPointsStatus[1] = (points >> 16) & 0xFF;
-    dataPointsStatus[2] = (points >> 8) & 0xFF;
-    dataPointsStatus[3] = points & 0xFF;
-    dataPointsStatus[4] = 1; // 1 = ACTIVE
-
-    String shortStart = gymMembershipStarts.substring(0, 10);
-    String shortEnd = gymMembershipEnds.substring(0, 10);
-    shortStart.getBytes(dataStart, 16);
-    shortEnd.getBytes(dataEnd, 16);
-
-    bool success = true;
-    success &= writeDataToCardBlock(B_NAME, dataName);
-    success &= writeDataToCardBlock(B_SURNAME, dataSurname);
-    success &= writeDataToCardBlock(B_POINTS_STAT, dataPointsStatus);
-    success &= writeDataToCardBlock(B_EMAIL_1, dataEmail);
-    success &= writeDataToCardBlock(B_EMAIL_2, dataEmail + 16);
-    success &= writeDataToCardBlock(B_EMAIL_3, dataEmail + 32);
-    success &= writeDataToCardBlock(B_DATE_START, dataStart);
-    success &= writeDataToCardBlock(B_DATE_END, dataEnd);
-
-    if (!success) telnetPrintFmt("Ostrzeżenie: Błąd zapisu na karcie RFID (Rejestracja).\n");
-    else telnetPrintFmt("Sukces: Wszystkie dane usera bezpiecznie zdublowane na karcie RFID!\n");
-
-    return success;
-}
-
-bool writeStateToCard(int32_t points, String gymMembershipStarts, String gymMembershipEnds, MembershipState newState)
-{
-    byte dataPointsStatus[16] = {0};
-    byte dataStart[16] = {0};
-    byte dataEnd[16] = {0};
-
-    dataPointsStatus[0] = (points >> 24) & 0xFF;
-    dataPointsStatus[1] = (points >> 16) & 0xFF;
-    dataPointsStatus[2] = (points >> 8) & 0xFF;
-    dataPointsStatus[3] = points & 0xFF;
-    dataPointsStatus[4] = (newState == 0) ? 1 : 0;
-
-    String shortStart = gymMembershipStarts.substring(0, 10);
-    String shortEnd = gymMembershipEnds.substring(0, 10);
-    shortStart.getBytes(dataStart, 16);
-    shortEnd.getBytes(dataEnd, 16);
-
-    bool success = true;
-    success &= writeDataToCardBlock(B_POINTS_STAT, dataPointsStatus);
-    success &= writeDataToCardBlock(B_DATE_START, dataStart);
-    success &= writeDataToCardBlock(B_DATE_END, dataEnd);
-
-    if (!success) telnetPrintFmt("Ostrzeżenie: Błąd zapisu nowej daty/stanu na karcie RFID.\n");
-    else telnetPrintFmt("Sukces: Nowy status i zaktualizowane daty ważności zapisane na karcie RFID!\n");
-
-    return success;
-}
-
-bool writePointsToCard(int32_t newPoints)
-{
-    byte blockBuffer[18] = {0};
-
-    if (!readDataFromCardBlock(B_POINTS_STAT, blockBuffer)) {
-        telnetPrintFmt("Błąd: Nie udało się odczytać Bloku 6. Przerywam zapis na karcie.\n");
-        return false;
+    for (byte i = 0; i < 3; i++) {
+        byte size = sizeof(blockBuf);
+        if (mfrc522.MIFARE_Read(BLOCK_PERSONAL + i, blockBuf, &size) != MFRC522::STATUS_OK)
+            return RFID_READ_FAIL;
+        memcpy(&buffer[i * 16], blockBuf, 16);
     }
 
-    blockBuffer[0] = (newPoints >> 24) & 0xFF;
-    blockBuffer[1] = (newPoints >> 16) & 0xFF;
-    blockBuffer[2] = (newPoints >> 8) & 0xFF;
-    blockBuffer[3] = newPoints & 0xFF;
+    PersonalData tempData;
+    memcpy(&tempData, buffer, sizeof(PersonalData));
 
-    bool success = writeDataToCardBlock(B_POINTS_STAT, blockBuffer);
+    uint32_t computedCrc = calculateCRC32((uint8_t*)&tempData, sizeof(PersonalData) - 4);
+    if (computedCrc != tempData.crc) {
+        return RFID_CRC_INVALID;
+    }
 
-    if (!success) telnetPrintFmt("Ostrzeżenie: Wystąpił błąd zapisu punktów na karcie RFID.\n");
-    else telnetPrintFmt("Sukces: Punkty na karcie zaktualizowane do stanu: %d\n", newPoints);
+    data = tempData;
+    return RFID_OK;
+}
 
-    return success;
+RfidResult writeServiceData(ServiceData &data) {
+    if (!authenticateBlock(BLOCK_SERVICE, keyService)) return RFID_AUTH_FAIL;
+
+    data.crc = calculateCRC32((uint8_t*)&data, sizeof(ServiceData) - 4);
+
+    byte buffer[16] = {0};
+    memcpy(buffer, &data, sizeof(ServiceData));
+    if (mfrc522.MIFARE_Write(BLOCK_SERVICE, buffer, 16) != MFRC522::STATUS_OK) return RFID_WRITE_FAIL;
+    return RFID_OK;
+}
+
+RfidResult readServiceData(ServiceData &data) {
+    if (!authenticateBlock(BLOCK_SERVICE, keyService)) return RFID_AUTH_FAIL;
+
+    byte blockBuf[18];
+    byte size = sizeof(blockBuf);
+    if (mfrc522.MIFARE_Read(BLOCK_SERVICE, blockBuf, &size) != MFRC522::STATUS_OK) return RFID_READ_FAIL;
+
+    ServiceData tempData;
+    memcpy(&tempData, blockBuf, sizeof(ServiceData));
+
+    uint32_t computedCrc = calculateCRC32((uint8_t*)&tempData, sizeof(ServiceData) - 4);
+    if (computedCrc != tempData.crc) {
+        return RFID_CRC_INVALID;
+    }
+
+    data = tempData;
+    return RFID_OK;
+}
+
+RfidResult writeEmailData(EmailData &data) {
+    if (!authenticateBlock(BLOCK_EMAIL, keyEmail)) return RFID_AUTH_FAIL;
+
+    data.crc = calculateCRC32((uint8_t*)&data, sizeof(EmailData) - 4);
+
+    byte buffer[48] = {0};
+    memcpy(buffer, &data, sizeof(EmailData));
+
+    for (byte i = 0; i < 3; i++) {
+        if (mfrc522.MIFARE_Write(BLOCK_EMAIL + i, &buffer[i * 16], 16) != MFRC522::STATUS_OK)
+            return RFID_WRITE_FAIL;
+    }
+    return RFID_OK;
+}
+
+RfidResult readEmailData(EmailData &data) {
+    if (!authenticateBlock(BLOCK_EMAIL, keyEmail)) return RFID_AUTH_FAIL;
+
+    byte buffer[48] = {0};
+    byte blockBuf[18];
+
+    for (byte i = 0; i < 3; i++) {
+        byte size = sizeof(blockBuf);
+        if (mfrc522.MIFARE_Read(BLOCK_EMAIL + i, blockBuf, &size) != MFRC522::STATUS_OK) 
+            return RFID_READ_FAIL;
+        memcpy(&buffer[i * 16], blockBuf, 16);
+    }
+
+    EmailData tempData;
+    memcpy(&tempData, buffer, sizeof(EmailData));
+
+    uint32_t computedCrc = calculateCRC32((uint8_t*)&tempData, sizeof(EmailData) - 4);
+    if (computedCrc != tempData.crc) {
+        return RFID_CRC_INVALID;
+    }
+
+    data = tempData;
+    return RFID_OK;
 }

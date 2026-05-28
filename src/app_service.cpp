@@ -2,169 +2,179 @@
 #include "api_client.h"
 #include <ArduinoJson.h>
 
-RegisterResult registerMember(String cardUid, String name, String surname, String email)
+static String userIdToHex(const uint8_t* userId) {
+    String hex = "";
+    for (int i = 0; i < 16; i++) {
+        if (userId[i] < 0x10) hex += "0";
+        hex += String(userId[i], HEX);
+    }
+    hex.toUpperCase();
+    return hex;
+}
+
+static void hexToUserId(const String& hexStr, uint8_t* outUserId) {
+    for (size_t i = 0; i < 16; i++) {
+        if (i * 2 + 2 <= hexStr.length()) {
+            String byteStr = hexStr.substring(i * 2, i * 2 + 2);
+            outUserId[i] = (uint8_t)strtol(byteStr.c_str(), NULL, 16);
+        } else {
+            outUserId[i] = 0;
+        }
+    }
+}
+
+ApiResult registerMember(const RegisterRequest &req, MemberDataResponse &outData)
 {
-    // Inicjalizacja struktury zerami/pustymi stringami
-    RegisterResult result = {false, "", "", "", 0};
-    
     JsonDocument doc;
-    doc["name"] = name;
-    doc["surname"] = surname;
-    doc["email"] = email;
-    doc["card_UID"] = cardUid;
+    doc["cardUid"] = req.cardUid;
+    doc["name"] = req.name;
+    doc["surname"] = req.surname;
+    doc["email"] = req.email;
 
     String payload;
     serializeJson(doc, payload);
 
     String resp = apiCall("POST", "/register", payload);
 
-    // Wstępne sprawdzenie, czy odpowiedź nie jest błędem HTTP
-    if (resp.indexOf("success") == -1) {
-        result.errorMessage = "Server rejected registration or connection failed.";
-        return result;
+    if (resp.startsWith("ERROR") || resp.length() == 0) {
+        return ApiResult::API_ERROR;
     }
 
-    // --- PARSOWANIE ODPOWIEDZI ---
-    JsonDocument respDoc;
-    DeserializationError error = deserializeJson(respDoc, resp);
-    
-    if (!error && respDoc["status"] == "success") {
-        // Dobieramy się do obiektu "user", który odesłał backend
-        JsonObject user = respDoc["user"];
-        
-        // Zapisujemy wygenerowane przez backend dane do naszej struktury
-        result.gymMembershipStarts = user["gymMembershipStarts"].as<String>();
-        result.gymMembershipEnds = user["gymMembershipEnds"].as<String>();
-        result.coffeePoints = user["coffeePoints"];
-        
-        result.success = true;
-    } else {
-        result.errorMessage = "Failed to parse user data from server.";
+    if (deserializeJson(doc, resp)) {
+        return ApiResult::API_ERROR;
     }
 
-    return result; 
+    if (doc["success"] == true) {
+        outData.validUntil = doc["validUntil"] | 0;
+        outData.points = doc["points"] | 0;
+
+        // Odbieramy userId jako String HEX i przepisujemy do tablicy bajtów
+        String apiUuid = doc["userId"] | "";
+        hexToUserId(apiUuid, outData.userId);
+
+        return ApiResult::API_OK;
+    }
+
+    return ApiResult::API_ERROR;
 }
 
-MemberDataResult getMemberData(String cardUid)
+ApiResult checkMemberData(const uint8_t* userId, MemberDataResponse &outData, bool isGate)
 {
-    MemberDataResult result = {false, "", "", "", 0, "", 0, "", false};
-    String resp = apiCall("GET", "/getUserData/" + cardUid);
+    String userIdStr = userIdToHex(userId);
+    String url = "/member/" + userIdStr;
+    if (isGate) {
+        url += "?gate=true";
+    }
+    String resp = apiCall("GET", url);
 
-    if (resp.startsWith("ERROR")) {
-        result.errorMessage = "API connection error.";
-        return result;
+    if (resp.startsWith("ERROR") || resp.length() == 0) {
+        return ApiResult::API_ERROR;
     }
 
     JsonDocument doc;
-    DeserializationError error = deserializeJson(doc, resp);
-    if (error) {
-        result.errorMessage = "JSON parse error.";
-        return result;
+    if (deserializeJson(doc, resp)) {
+        return ApiResult::API_ERROR;
     }
 
-    const char* status = doc["status"];
-    if (strcmp(status, "success") != 0) {
-        result.errorMessage = "User not found.";
-        return result;
+    if (doc["success"] == true) {
+        outData.validUntil = doc["validUntil"] | 0;
+        outData.points = doc["points"] | 0;
+        String stateStr = doc["status"] | "INACTIVE";
+        outData.state = (stateStr == "ACTIVE") ? ACTIVE : INACTIVE;
+        
+        String apiUuid = doc["userId"] | userIdStr;
+        hexToUserId(apiUuid, outData.userId);
+
+        return ApiResult::API_OK;
     }
 
-    JsonObject user = doc["user"];
-
-    result.name = user["name"].as<String>();
-    result.surname = user["surname"].as<String>();
-    result.coffeePoints = user["coffeePoints"];
-    result.membershipEnds = user["gymMembershipEnds"].as<String>();
-
-    JsonArray sessions = doc["sessions"];
-    result.totalSessions = sessions.size();
-
-    if (result.totalSessions > 0) {
-        JsonObject latestSession = sessions[0];
-        result.lastEnterDate = latestSession["enterDate"].as<String>();
-        result.isAtTheGym = latestSession["isAtTheGym"];
-    }
-
-    result.success = true;
-    return result;
+    return ApiResult::API_ERROR;
 }
 
-StateChangeResult changeMembershipState(String cardUid, MembershipState newState)
+ApiResult modifyPoints(const uint8_t* userId, int32_t amount, int32_t &outNewTotal)
 {
-    StateChangeResult result = {false, ""};
-    String resp = apiCall("POST", "/change/membershipState/" + cardUid + "/" + String(newState));
+    String userIdStr = userIdToHex(userId);
 
-    if (resp.startsWith("ERROR") || resp.indexOf("error") != -1) {
-        result.errorMessage = "Failed to change membership state.";
-        return result;
+    JsonDocument doc;
+    doc["uid"] = userIdStr;
+    doc["amount"] = amount;
+
+    String payload;
+    serializeJson(doc, payload);
+
+    String resp = apiCall("POST", "/points", payload);
+
+    if (resp.startsWith("ERROR") || resp.length() == 0) {
+        return ApiResult::API_ERROR;
     }
 
-    result.success = true;
-    return result;
+    if (deserializeJson(doc, resp)) {
+        return ApiResult::API_ERROR;
+    }
+
+    if (doc["success"] == true || resp.indexOf("ERROR") == -1) {
+        outNewTotal = doc["new_total"] | 0;
+        printf("Points updated via API. Current total: %d\n", outNewTotal);
+        return ApiResult::API_OK;
+    }
+
+    return ApiResult::API_ERROR;
 }
 
-ModifyPointsResult modifyPoints(String card_UID, int32_t amount)
+ApiResult changeMembershipState(const uint8_t* userId, MembershipState newState, MembershipState &outActualState)
 {
-    ModifyPointsResult result = {false, ""};
-    if (amount == 0) {
-        result.success = true;
-        return result;
+    String userIdStr = userIdToHex(userId);
+
+    JsonDocument doc;
+    doc["uid"] = userIdStr;
+    doc["status"] = (newState == ACTIVE) ? "ACTIVE" : "INACTIVE";
+
+    String payload;
+    serializeJson(doc, payload);
+
+    String resp = apiCall("PUT", "/state", payload);
+
+    if (resp.startsWith("ERROR") || resp.length() == 0) {
+        return ApiResult::API_ERROR;
     }
 
-    String resp;
-
-    if (amount > 0) {
-        resp = apiCall("POST", "/add/coffee/points/" + card_UID + "/" + String(amount));
-    }
-    else {
-        resp = apiCall("POST", "/subtract/coffee/points/" + card_UID + "/" + String(abs(amount)));
+    if (deserializeJson(doc, resp)) {
+        return ApiResult::API_ERROR;
     }
 
-    if (resp.startsWith("ERROR") || resp.indexOf("error") != -1) {
-        result.errorMessage = "Failed to modify points.";
-        return result;
+    if (doc["success"] == true || resp.indexOf("updated") != -1) {
+        String stateStr = doc["status"] | "INACTIVE";
+        outActualState = (stateStr == "ACTIVE") ? ACTIVE : INACTIVE;
+        return ApiResult::API_OK;
     }
 
-    result.success = true;
-    return result;
+    return ApiResult::API_ERROR;
 }
 
-LogScanResult logGymScan(String card_UID){
-    LogScanResult result = {false, ""};
-    String resp = apiCall("POST", "/enter/exit/gym/" + card_UID);
-
-    if (resp.startsWith("ERROR") || resp.indexOf("error") != -1) {
-        result.errorMessage = "Failed to log gym scan.";
-        return result;
-    }
-
-    result.success = true;
-    return result;
-}
-
-ExtendMembershipResult extendMembership(String cardUid, int months)
+ApiResult extendValidity(const uint8_t* userId, uint32_t &outNewValidUntil)
 {
-    ExtendMembershipResult result = {false, "", ""};
+    String userIdStr = userIdToHex(userId);
 
-    String endpoint = "/extend/membership/" + cardUid + "/" + String(months);
-    String resp = apiCall("POST", endpoint);
+    JsonDocument doc;
+    doc["uid"] = userIdStr;
 
-    if (resp.startsWith("ERROR") || resp.indexOf("error") != -1 || resp.indexOf("success") == -1) {
-        result.errorMessage = "Server rejected extension or connection failed.";
-        return result;
+    String payload;
+    serializeJson(doc, payload);
+
+    String resp = apiCall("POST", "/extend", payload);
+
+    if (resp.startsWith("ERROR") || resp.length() == 0) {
+        return ApiResult::API_ERROR;
     }
 
-    JsonDocument respDoc;
-    DeserializationError error = deserializeJson(respDoc, resp);
-
-    if (!error && respDoc["status"] == "success") {
-        JsonObject user = respDoc["user"];
-        result.newMembershipStarts = user["gymMembershipStarts"].as<String>();
-        result.newMembershipEnds = user["gymMembershipEnds"].as<String>();
-        result.coffeePoints = user["coffeePoints"];
-        result.success = true;
-    } else {
-        result.errorMessage = "Failed to parse updated user data from server.";
+    if (deserializeJson(doc, resp)) {
+        return ApiResult::API_ERROR;
     }
 
-    return result;
+    if (doc["success"] == true) {
+        outNewValidUntil = doc["validUntil"] | 0;
+        return ApiResult::API_OK;
+    }
+
+    return ApiResult::API_ERROR;
 }
