@@ -1,6 +1,6 @@
 #pragma once
 #include <Arduino.h>
-#include "globals.h"
+#include "app_service.h" // ZMIANA: Dodano nagłówek z definicją MembershipState
 
 bool authenticateCard();
 void stopComm();

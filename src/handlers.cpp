@@ -36,10 +36,9 @@ void handleGateLogic()
 
     case GATE_PROCESSING:
         {
-            // Send API request to check/update member
-            bool success = logGymScan(gateCurrentUid);
+            LogScanResult result = logGymScan(gateCurrentUid);
 
-            if (success)
+            if (result.success)
             {
                 // Access granted - turn on green LED
                 printf("Access granted for: %s\n", gateCurrentUid.c_str());
@@ -50,7 +49,7 @@ void handleGateLogic()
             else
             {
                 // Access denied or error - turn on red LED
-                printf("Access denied or error for: %s\n", gateCurrentUid.c_str());
+                printf("Access denied or error for: %s. Reason: %s\n", gateCurrentUid.c_str(), result.errorMessage.c_str());
                 digitalWrite(LED_RED, LOW);     // Active Low - LOW = ON
                 digitalWrite(LED_GREEN, HIGH);  // Active Low - HIGH = OFF
                 gateState = GATE_FAILURE;
@@ -180,21 +179,55 @@ void handleReceptionNonBlocking()
             telnetPrintFmt("Handling card: %s\n", uid.c_str());
 
             if (lastChoice == "1") {
-                checkMemberData(uid);
+                MemberDataResult res = getMemberData(uid);
+                
+                if (!res.success) {
+                    telnetPrintFmt("Błąd API: %s\n", res.errorMessage.c_str());
+                } else {
+                    // Wyświetlenie danych pobranych do struktury przez Telnet
+                    telnetPrintFmt("\n=============================\n");
+                    telnetPrintFmt("     MEMBER INFO CARD        \n");
+                    telnetPrintFmt("=============================\n");
+                    telnetPrintFmt("Name:    %s %s\n", res.name.c_str(), res.surname.c_str());
+                    telnetPrintFmt("Points:  %d\n", res.coffeePoints);
+                    telnetPrintFmt("Expires: %s\n", res.membershipEnds.c_str());
+                    telnetPrintFmt("Total sessions registered: %d\n", res.totalSessions);
+
+                    if (res.totalSessions > 0) {
+                        telnetPrintFmt("-----------------------------\n");
+                        telnetPrintFmt("Last activity:\n");
+                        telnetPrintFmt(" - Date:   %s\n", res.lastEnterDate.c_str());
+                        telnetPrintFmt(" - Status: %s\n", res.isAtTheGym ? "Still inside the gym" : "Completed");
+                    }
+                    telnetPrintFmt("=============================\n\n");
+                }
             }
             else if (lastChoice == "2") {
-                registerMember(uid, nameBuffer, surnameBuffer, emailBuffer);
-                // Wywołanie zapisu na kartę z użyciem pobranych buforów
-                writeRegistrationToCard(nameBuffer, surnameBuffer, emailBuffer, "2026-05-28", "2027-05-28", 0);
+                RegisterResult res = registerMember(uid, nameBuffer, surnameBuffer, "2026-05-28", "2027-05-28", emailBuffer, "0");
+
+                if (res.success) {
+                    writeRegistrationToCard(nameBuffer, surnameBuffer, emailBuffer, "2026-05-28", "2027-05-28", 0);
+                } else {
+                    telnetPrintFmt("Rejestracja odrzucona przez serwer: %s\n", res.errorMessage.c_str());
+                }
             }
             else if (lastChoice == "3") {
-                modifyPoints(uid, pointsBuffer);
-                // Wywołanie zapisu z bufora punktów
-                writePointsToCard(pointsBuffer);
+                ModifyPointsResult res = modifyPoints(uid, pointsBuffer);
+
+                if (res.success) {
+                    writePointsToCard(pointsBuffer);
+                } else {
+                    telnetPrintFmt("Błąd zmiany punktów na serwerze: %s\n", res.errorMessage.c_str());
+                }
             }
             else if (lastChoice == "4") {
-                changeMembershipState(uid, stateBuffer);
-                writeStateToCard(0, "2026-05-28", "2027-05-28", stateBuffer);
+                StateChangeResult res = changeMembershipState(uid, stateBuffer);
+
+                if (res.success) {
+                    writeStateToCard(0, "2026-05-28", "2027-05-28", stateBuffer);
+                } else {
+                    telnetPrintFmt("Błąd zmiany statusu: %s\n", res.errorMessage.c_str());
+                }
             }
 
             stopComm();

@@ -2,8 +2,9 @@
 #include "api_client.h"
 #include <ArduinoJson.h>
 
-bool registerMember(String cardUid, String name, String surname, String gymMembershipStarts, String gymMembershipEnds, String email, String coffeePoints)
+RegisterResult registerMember(String cardUid, String name, String surname, String gymMembershipStarts, String gymMembershipEnds, String email, String coffeePoints)
 {
+    RegisterResult result = {false, ""};
     JsonDocument doc;
 
     doc["name"] = name;
@@ -20,77 +21,78 @@ bool registerMember(String cardUid, String name, String surname, String gymMembe
     String resp = apiCall("POST", "/register", payload);
 
     if (resp.indexOf("success") == -1) {
-        return false;
+        result.errorMessage = "Server rejected registration or connection failed.";
+        return result;
     }
 
-    return true;
+    result.success = true;
+    return result;
 }
 
-bool getMemberData(String cardUid)
+MemberDataResult getMemberData(String cardUid)
 {
+    MemberDataResult result = {false, "", "", "", 0, "", 0, "", false};
     String resp = apiCall("GET", "/getUserData/" + cardUid);
 
-    if (resp.startsWith("ERROR"))
-        return false;
+    if (resp.startsWith("ERROR")) {
+        result.errorMessage = "API connection error.";
+        return result;
+    }
 
     JsonDocument doc;
     DeserializationError error = deserializeJson(doc, resp);
     if (error) {
-        printf("JSON Deserialization failed!\n");
-        return false;
+        result.errorMessage = "JSON parse error.";
+        return result;
     }
 
     const char* status = doc["status"];
     if (strcmp(status, "success") != 0) {
-        printf("User not found or server error.\n");
-        return false;
+        result.errorMessage = "User not found.";
+        return result;
     }
 
     JsonObject user = doc["user"];
-    const char* name = user["name"];
-    const char* surname = user["surname"];
-    int coffeePoints = user["coffeePoints"];
-    const char* membershipEnds = user["gymMembershipEnds"];
 
-    printf("\n=============================\n");
-    printf("     MEMBER INFO CARD        \n");
-    printf("=============================\n");
-    printf("Name:    %s %s\n", name, surname);
-    printf("Points:  %d\n", coffeePoints);
-    printf("Expires: %s\n", membershipEnds);
+    result.name = user["name"].as<String>();
+    result.surname = user["surname"].as<String>();
+    result.coffeePoints = user["coffeePoints"];
+    result.membershipEnds = user["gymMembershipEnds"].as<String>();
 
     JsonArray sessions = doc["sessions"];
-    printf("Total sessions registered: %d\n", sessions.size());
+    result.totalSessions = sessions.size();
 
-    if (sessions.size() > 0) {
-        JsonObject latestSession = sessions[0]; // Indeks 0 to najnowsza sesja dzięki .sort() na serwerze
-        const char* enterDate = latestSession["enterDate"];
-        bool isAtTheGym = latestSession["isAtTheGym"];
-
-        printf("-----------------------------\n");
-        printf("Last activity:\n");
-        printf(" - Date:   %s\n", enterDate);
-        printf(" - Status: %s\n", isAtTheGym ? "Still inside the gym" : "Completed");
+    if (result.totalSessions > 0) {
+        JsonObject latestSession = sessions[0];
+        result.lastEnterDate = latestSession["enterDate"].as<String>();
+        result.isAtTheGym = latestSession["isAtTheGym"];
     }
-    printf("=============================\n\n");
 
-    return true;
+    result.success = true;
+    return result;
 }
 
-bool changeMembershipState(String cardUid, MembershipState newState)
+StateChangeResult changeMembershipState(String cardUid, MembershipState newState)
 {
+    StateChangeResult result = {false, ""};
     String resp = apiCall("POST", "/change/membershipState/" + cardUid + "/" + String(newState));
 
     if (resp.startsWith("ERROR") || resp.indexOf("error") != -1) {
-        return false;
+        result.errorMessage = "Failed to change membership state.";
+        return result;
     }
 
-    return true;
+    result.success = true;
+    return result;
 }
 
-bool modifyPoints(String card_UID, int32_t amount)
+ModifyPointsResult modifyPoints(String card_UID, int32_t amount)
 {
-    if (amount == 0) return true;
+    ModifyPointsResult result = {false, ""};
+    if (amount == 0) {
+        result.success = true;
+        return result;
+    }
 
     String resp;
 
@@ -102,18 +104,23 @@ bool modifyPoints(String card_UID, int32_t amount)
     }
 
     if (resp.startsWith("ERROR") || resp.indexOf("error") != -1) {
-        return false;
+        result.errorMessage = "Failed to modify points.";
+        return result;
     }
 
-    return true;
+    result.success = true;
+    return result;
 }
 
-bool logGymScan(String card_UID){
-    String resp = apiCall("POST", "/enter/exit/gym/" + card_Uid);
+LogScanResult logGymScan(String card_UID){
+    LogScanResult result = {false, ""};
+    String resp = apiCall("POST", "/enter/exit/gym/" + card_UID);
 
     if (resp.startsWith("ERROR") || resp.indexOf("error") != -1) {
-        return false;
+        result.errorMessage = "Failed to log gym scan.";
+        return result;
     }
 
-    return true;
+    result.success = true;
+    return result;
 }

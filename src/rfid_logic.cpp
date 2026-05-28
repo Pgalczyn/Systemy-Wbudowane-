@@ -1,7 +1,7 @@
 #include "rfid_logic.h"
 #include "globals.h"
 #include "telnet_tools.h"
-
+#include "app_service.h"
 String uidToHexString()
 {
     String uidHex;
