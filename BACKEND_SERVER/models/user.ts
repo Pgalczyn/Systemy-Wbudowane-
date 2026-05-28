@@ -1,16 +1,24 @@
-import mongoose,{Schema,Document} from "mongoose";
+import mongoose, { Schema, Types } from "mongoose";
 
-export interface IUser extends Document{
+export interface IUser {
+    _id: Types.UUID;
     name: string;
     surname: string;
     email: string;
-    gymMembershipStarts: Date;
-    gymMembershipEnds: Date;
-    coffeePoints: number;
-    card_UID: string;
+    membershipStart: Date;
+    membershipEnd: Date;
+    points: number;
+    cardUid: string;
+    membershipState?: "ACTIVE" | "INACTIVE";
 }
 
-const UserSchema = new Schema({
+const UserSchema = new Schema<IUser>({
+        _id: {
+        type: Schema.Types.UUID,
+        required: true,
+        unique: true,
+        default: () => new mongoose.Types.UUID()
+    },
     name: {
         type: String,
         required: true,
@@ -25,31 +33,37 @@ const UserSchema = new Schema({
         type: String,
         required: true,
         unique: true,
-        match: [/^\S+@\S+\.\S+$/,"incorrect email "],
+        match: [/^\S+@\S+\.\S+$/, "incorrect email "],
     },
-    gymMembershipStarts: {
-        type:Date,
+    membershipStart: {
+        type: Date,
         required: true,
         default: Date.now
     },
-    gymMembershipEnds: {
+    membershipEnd: {
         type: Date,
         required: true,
         default: () => {
             const date = new Date();
-            date.setMonth(date.getMonth() + 3);
+            date.setMonth(date.getMonth() + 1);
             return date;
         }
     },
-    coffeePoints: {
+    points: {
         type: Number,
         required: true,
-        default: 1000
+        default: 100
     },
-    card_UID: {
+    cardUid: {
         type: String,
         required: true,
         unique: true
+    },
+    membershipState: {
+        type: String,
+        enum: ["ACTIVE", "INACTIVE"],
+        required: false,
+        default: undefined
     }
 
 })

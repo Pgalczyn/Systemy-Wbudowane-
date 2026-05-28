@@ -1,36 +1,32 @@
-import mongoose,{Schema,Document} from "mongoose";
+import mongoose, { Schema, Types } from "mongoose";
 
-export interface IgymSession  extends Document{
-    user: mongoose.Types.ObjectId;
-    enterDate: Date;
-    exitDate: Date;
-    sessionDuration: number;
-    isAtTheGym:boolean;
+export interface IGymSession {
+    user: Types.UUID;
+    enterTime: Date;
+    exitTime?: Date;
+    isAtTheGym: boolean;
 }
 
-const gymSessionSchema = new Schema({
+const gymSessionSchema = new Schema<IGymSession>({
     user: {
-        type: Schema.Types.ObjectId,
+        type: Schema.Types.UUID,
         ref: "User",
         required: true
     },
-    enterDate:{
+    enterTime: {
         type: Date,
         required: true,
         default: Date.now
     },
-    exitDate:{
+    exitTime: {
         type: Date,
         required: false,
     },
-    isAtTheGym:{
+    isAtTheGym: {
         type: Boolean,
         required: true,
+        default: true
     },
-    sessionDuration:{
-        type: Number,
-        required: false
-    }
 })
 
-export const GymSession = mongoose.model<IgymSession>("GymSession", gymSessionSchema);
+export const GymSession = mongoose.model<IGymSession>("GymSession", gymSessionSchema);
