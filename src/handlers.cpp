@@ -8,6 +8,9 @@
 GateState gateState = GATE_WAITING_CARD;
 unsigned long gateStateChangeTime = 0;
 String gateCurrentUid = "";
+static PersonalData currentPerson;
+static EmailData currentEmail;
+static ServiceData currentService;
 
 // RECEPTION MODE VARIABLES
 ReceptionState currentStep = RX_SHOW_MENU;
@@ -23,50 +26,84 @@ void handleGateLogic()
     switch (gateState)
     {
     case GATE_WAITING_CARD:
-        // Always waiting for a card
-        if (authenticateCard())
+        if (isCardPresent())
         {
             gateCurrentUid = uidToHexString();
             printf("Card detected: %s\n", gateCurrentUid.c_str());
-            
+
+            RfidResult resPersonal = readPersonalData(currentPerson);
+            RfidResult resEmail = readEmailData(currentEmail);
+
+            if (resPersonal != RFID_OK || resEmail != RFID_OK)
+            {
+                printf("Error: Card data corrupted!\n");
+                stopComm();
+                gateState = GATE_PREPARE_FAILURE;
+                break;
+            }
+
             gateState = GATE_PROCESSING;
-            gateStateChangeTime = millis();
         }
         break;
 
     case GATE_PROCESSING:
-        {
-            // Send API request to check/update member
-            bool success = checkMemberData(gateCurrentUid);
-            
-            if (success)
-            {
-                // Access granted - turn on green LED
-                printf("Access granted for: %s\n", gateCurrentUid.c_str());
-                digitalWrite(LED_GREEN, LOW);   // Active Low - LOW = ON
-                digitalWrite(LED_RED, HIGH);    // Active Low - HIGH = OFF
-                gateState = GATE_SUCCESS;
-            }
-            else
-            {
-                // Access denied or error - turn on red LED
-                printf("Access denied or error for: %s\n", gateCurrentUid.c_str());
-                digitalWrite(LED_RED, LOW);     // Active Low - LOW = ON
-                digitalWrite(LED_GREEN, HIGH);  // Active Low - HIGH = OFF
-                gateState = GATE_FAILURE;
-            }
-            gateStateChangeTime = millis();
-        }
+        printf("Processing card for user: %s %s\n", currentPerson.name, currentPerson.surname);
+        
+        RfidResult resService = readServiceData(currentService);
+
+
+        // ApiResult apiRes = checkMemberData(gateCurrentUid);
+        
+        // if (checkMemberData(gateCurrentUid))
+        // {
+        //     gateState = GATE_SUCCESS;
+        // }
+        // else
+        // {
+        //     gateState = GATE_FAILURE;
+        // }
+        // gateStateChangeTime = millis();
+
+        // RfidResult resService = readServiceData(currentService);
+
+        // // stopComm();
+
+        // if (resService == RFID_CRC_INVALID)
+        // {
+        //     printf("Error: Service data corrupted (CRC mismatch)!\n");
+        //     gateState = GATE_FAILURE;
+        // }
+        // else
+        // {
+        //     // RFID_OK lub błędy odczytu/autoryzacji (karta zabrana) - ignorujemy i idziemy do API
+        //     gateState = GATE_PROCESSING;
+        // }
+        break;
+
+    case GATE_PREPARE_FAILURE:
+        gateStateChangeTime = millis();
+        digitalWrite(LED_RED, LOW);
+        gateState = GATE_FAILURE;
+        break;
+
+    case GATE_PREPARE_SUCCESS:
+        gateStateChangeTime = millis();
+        digitalWrite(LED_GREEN, LOW);
+        gateState = GATE_SUCCESS;
         break;
 
     case GATE_SUCCESS:
-    case GATE_FAILURE:
-        // Keep LED on for 2 seconds
         if (millis() - gateStateChangeTime > 2000)
         {
-            digitalWrite(LED_GREEN, HIGH);  // Active Low - HIGH = OFF
-            digitalWrite(LED_RED, HIGH);    // Active Low - HIGH = OFF
-            stopComm();
+            digitalWrite(LED_GREEN, HIGH);
+            gateState = GATE_WAITING_CARD;
+        }
+        break;
+
+    case GATE_FAILURE:
+        if (millis() - gateStateChangeTime > 2000)
+        {
+            digitalWrite(LED_RED, HIGH);
             gateState = GATE_WAITING_CARD;
         }
         break;
@@ -95,26 +132,31 @@ void handleReceptionNonBlocking()
         {
             input.trim();
 
-            if (input == "1") {
+            if (input == "1")
+            {
                 lastChoice = input;
                 currentStep = RX_WAITING_FOR_CARD_MSG;
             }
-            else if (input == "2") {
+            else if (input == "2")
+            {
                 lastChoice = "2";
                 telnetPrintFmt("Enter name: ");
                 currentStep = RX_WAIT_FOR_NAME;
             }
-            else if (input == "3") {
+            else if (input == "3")
+            {
                 lastChoice = "3";
                 telnetPrintFmt("How many points?: ");
                 currentStep = RX_WAIT_FOR_POINTS;
             }
-            else if (input == "4") {
+            else if (input == "4")
+            {
                 lastChoice = "4";
                 telnetPrintFmt("Status (1=ACT, 0=INA): ");
                 currentStep = RX_WAIT_FOR_STATE;
             }
-            else {
+            else
+            {
                 currentStep = RX_SHOW_MENU;
             }
         }
@@ -174,7 +216,7 @@ void handleReceptionNonBlocking()
             stopComm();
             currentStep = RX_SHOW_MENU;
         }
-        else if (authenticateCard())
+        else if (isCardPresent())
         {
             String uid = uidToHexString();
             telnetPrintFmt("Handling card: %s\n", uid.c_str());

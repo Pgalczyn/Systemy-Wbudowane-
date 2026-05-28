@@ -5,7 +5,6 @@
 #include <telnet_tools.h>
 
 MFRC522 mfrc522(SS_PIN, RST_PIN);
-MFRC522::MIFARE_Key key;
 WiFiManager wifiManager;
 DeviceMode currentMode = MODE_NONE;
 WiFiServer telnetServer(23);
@@ -81,9 +80,6 @@ void setup()
   }
   SPI.begin();
   mfrc522.PCD_Init();
-
-  for (byte i = 0; i < 6; i++)
-    key.keyByte[i] = 0xFF;
 
   printf("System ready.\n");
 }

@@ -1,27 +1,26 @@
 #include "app_service.h"
 #include "api_client.h"
 #include <ArduinoJson.h>
-//bool registerMember(String name, String surname, String gymMembershipStarts, String gymMembershipEnds,String email, String coffeePoints)
+
 bool registerMember(String cardUid, String name, String surname, String email)
 {
     JsonDocument doc;
-    // doc["uid"] = cardUid;
-    // doc["gymMembershipStarts"] = gymMembershipStarts;
-    // doc["gymMembershipEnds"] = gymMembershipEnds;
-    // doc["coffeePoints"] = coffeePoints.toInt();
 
+    doc["cardUid"] = cardUid;
     doc["name"] = name;
     doc["surname"] = surname;
     doc["email"] = email;
 
-    doc["gymMembershipStarts"] = "2026-11-31T23:59:59.999Z";
-    doc["gymMembershipEnds"] = "2026-12-31T23:59:59.999Z";
-    doc["coffeePoints"] = 1000;
-    
     String payload;
     serializeJson(doc, payload);
 
     String resp = apiCall("POST", "/register", payload);
+
+    DeserializationError error = deserializeJson(doc, resp);
+    if (error) {
+        Serial.println("Failed to parse API response.");
+        return false;
+    }
 
     return resp.indexOf("success") != -1;
 }
