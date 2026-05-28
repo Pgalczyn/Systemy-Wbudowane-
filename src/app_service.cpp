@@ -34,28 +34,20 @@ ApiResult registerMember(const RegisterRequest &req, MemberDataResponse &outData
     String payload;
     serializeJson(doc, payload);
 
-    String resp = apiCall("POST", "/register", payload);
+    String resp;
+    int httpCode = apiCall("POST", "/register", payload, resp);
 
-    if (resp.startsWith("ERROR") || resp.length() == 0) {
+    // HTTP 200 oznacza sukces. Jeśli jest inny lub JSON jest uszkodzony -> błąd.
+    if (httpCode != 200 || deserializeJson(doc, resp)) {
         return ApiResult::API_ERROR;
     }
 
-    if (deserializeJson(doc, resp)) {
-        return ApiResult::API_ERROR;
-    }
+    outData.validUntil = doc["validUntil"].as<uint32_t>();
+    outData.points = doc["points"].as<int32_t>();
 
-    if (doc["success"] == true) {
-        outData.validUntil = doc["validUntil"] | 0;
-        outData.points = doc["points"] | 0;
+    hexToUserId(doc["userId"].as<String>(), outData.userId);
 
-        // Odbieramy userId jako String HEX i przepisujemy do tablicy bajtów
-        String apiUuid = doc["userId"] | "";
-        hexToUserId(apiUuid, outData.userId);
-
-        return ApiResult::API_OK;
-    }
-
-    return ApiResult::API_ERROR;
+    return ApiResult::API_OK;
 }
 
 ApiResult checkMemberData(const uint8_t* userId, MemberDataResponse &outData, bool isGate)
@@ -65,30 +57,27 @@ ApiResult checkMemberData(const uint8_t* userId, MemberDataResponse &outData, bo
     if (isGate) {
         url += "?gate=true";
     }
-    String resp = apiCall("GET", url);
-
-    if (resp.startsWith("ERROR") || resp.length() == 0) {
-        return ApiResult::API_ERROR;
-    }
+    
+    String resp;
+    int httpCode = apiCall("GET", url, "", resp);
 
     JsonDocument doc;
-    if (deserializeJson(doc, resp)) {
+    if (httpCode != 200 || deserializeJson(doc, resp)) {
         return ApiResult::API_ERROR;
     }
 
-    if (doc["success"] == true) {
-        outData.validUntil = doc["validUntil"] | 0;
-        outData.points = doc["points"] | 0;
-        String stateStr = doc["status"] | "INACTIVE";
-        outData.state = (stateStr == "ACTIVE") ? ACTIVE : INACTIVE;
-        
-        String apiUuid = doc["userId"] | userIdStr;
-        hexToUserId(apiUuid, outData.userId);
-
-        return ApiResult::API_OK;
+    outData.validUntil = doc["validUntil"].as<uint32_t>();
+    outData.points = doc["points"].as<int32_t>();
+    
+    String stateStr = doc["status"].as<String>();
+    if (stateStr.length() == 0) {
+        stateStr = "INACTIVE";
     }
+    outData.state = (stateStr == "ACTIVE") ? ACTIVE : INACTIVE;
+    
+    hexToUserId(doc["userId"].as<String>(), outData.userId);
 
-    return ApiResult::API_ERROR;
+    return ApiResult::API_OK;
 }
 
 ApiResult modifyPoints(const uint8_t* userId, int32_t amount, int32_t &outNewTotal)
@@ -96,29 +85,23 @@ ApiResult modifyPoints(const uint8_t* userId, int32_t amount, int32_t &outNewTot
     String userIdStr = userIdToHex(userId);
 
     JsonDocument doc;
-    doc["uid"] = userIdStr;
     doc["amount"] = amount;
 
     String payload;
     serializeJson(doc, payload);
 
-    String resp = apiCall("POST", "/points", payload);
+    String resp;
+    String url = "/member/" + userIdStr + "/points";
+    int httpCode = apiCall("PUT", url, payload, resp);
 
-    if (resp.startsWith("ERROR") || resp.length() == 0) {
+    if (httpCode != 200 || deserializeJson(doc, resp)) {
         return ApiResult::API_ERROR;
     }
 
-    if (deserializeJson(doc, resp)) {
-        return ApiResult::API_ERROR;
-    }
-
-    if (doc["success"] == true || resp.indexOf("ERROR") == -1) {
-        outNewTotal = doc["new_total"] | 0;
-        printf("Points updated via API. Current total: %d\n", outNewTotal);
-        return ApiResult::API_OK;
-    }
-
-    return ApiResult::API_ERROR;
+    outNewTotal = doc["newTotal"].as<int32_t>();
+    printf("Points updated via API. Current total: %d\n", outNewTotal);
+    
+    return ApiResult::API_OK;
 }
 
 ApiResult changeMembershipState(const uint8_t* userId, MembershipState newState, MembershipState &outActualState)
@@ -126,55 +109,41 @@ ApiResult changeMembershipState(const uint8_t* userId, MembershipState newState,
     String userIdStr = userIdToHex(userId);
 
     JsonDocument doc;
-    doc["uid"] = userIdStr;
     doc["status"] = (newState == ACTIVE) ? "ACTIVE" : "INACTIVE";
 
     String payload;
     serializeJson(doc, payload);
 
-    String resp = apiCall("PUT", "/state", payload);
+    String resp;
+    String url = "/member/" + userIdStr + "/state";
+    int httpCode = apiCall("PUT", url, payload, resp);
 
-    if (resp.startsWith("ERROR") || resp.length() == 0) {
+    if (httpCode != 200 || deserializeJson(doc, resp)) {
         return ApiResult::API_ERROR;
     }
 
-    if (deserializeJson(doc, resp)) {
-        return ApiResult::API_ERROR;
+    String stateStr = doc["status"].as<String>();
+    if (stateStr.length() == 0) {
+        stateStr = "INACTIVE";
     }
-
-    if (doc["success"] == true || resp.indexOf("updated") != -1) {
-        String stateStr = doc["status"] | "INACTIVE";
-        outActualState = (stateStr == "ACTIVE") ? ACTIVE : INACTIVE;
-        return ApiResult::API_OK;
-    }
-
-    return ApiResult::API_ERROR;
+    outActualState = (stateStr == "ACTIVE") ? ACTIVE : INACTIVE;
+    
+    return ApiResult::API_OK;
 }
 
 ApiResult extendValidity(const uint8_t* userId, uint32_t &outNewValidUntil)
 {
     String userIdStr = userIdToHex(userId);
 
+    String resp;
+    int httpCode = apiCall("PUT", "/member/" + userIdStr + "/extend-validity", "", resp);
+
     JsonDocument doc;
-    doc["uid"] = userIdStr;
-
-    String payload;
-    serializeJson(doc, payload);
-
-    String resp = apiCall("POST", "/extend", payload);
-
-    if (resp.startsWith("ERROR") || resp.length() == 0) {
+    if (httpCode != 200 || deserializeJson(doc, resp)) {
         return ApiResult::API_ERROR;
     }
 
-    if (deserializeJson(doc, resp)) {
-        return ApiResult::API_ERROR;
-    }
-
-    if (doc["success"] == true) {
-        outNewValidUntil = doc["validUntil"] | 0;
-        return ApiResult::API_OK;
-    }
-
-    return ApiResult::API_ERROR;
+    outNewValidUntil = doc["validUntil"].as<uint32_t>();
+    
+    return ApiResult::API_OK;
 }
