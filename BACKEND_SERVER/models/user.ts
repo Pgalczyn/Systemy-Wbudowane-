@@ -16,7 +16,6 @@ const UserSchema = new Schema<IUser>({
         _id: {
         type: Schema.Types.UUID,
         required: true,
-        unique: true,
         default: () => new mongoose.Types.UUID()
     },
     name: {
@@ -62,8 +61,8 @@ const UserSchema = new Schema<IUser>({
     membershipState: {
         type: String,
         enum: ["ACTIVE", "INACTIVE"],
-        required: false,
-        default: undefined
+        required: true,
+        default: "ACTIVE"
     }
 
 })

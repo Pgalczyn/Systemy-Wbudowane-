@@ -1,5 +1,6 @@
 #include "rfid_logic.h"
 #include "globals.h"
+#include "hex_util.h"
 
 static MFRC522::MIFARE_Key keyPersonal = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 static MFRC522::MIFARE_Key keyService = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
@@ -17,17 +18,8 @@ uint32_t calculateCRC32(const uint8_t *data, size_t length) {
     return ~crc;
 }
 
-String uidToHexString()
-{
-    String uidHex;
-    for (byte i = 0; i < mfrc522.uid.size; i++)
-    {
-        if (mfrc522.uid.uidByte[i] < 0x10)
-            uidHex += "0";
-        uidHex += String(mfrc522.uid.uidByte[i], HEX);
-    }
-    uidHex.toUpperCase();
-    return uidHex;
+String getCardUid() {
+    return bytesToHex(mfrc522.uid.uidByte, mfrc522.uid.size);
 }
 
 static bool authenticateBlock(byte blockAddr, MFRC522::MIFARE_Key &key)

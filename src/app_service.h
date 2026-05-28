@@ -28,3 +28,6 @@ ApiResult checkMemberData(const uint8_t* userId, MemberDataResponse &outData, bo
 ApiResult extendValidity(const uint8_t* userId, uint32_t &outNewValidUntil);
 ApiResult modifyPoints(const uint8_t* userId, int32_t amount, int32_t &outNewTotal);
 ApiResult changeMembershipState(const uint8_t* userId, MembershipState newState, MembershipState &outActualState);
+ApiResult rollbackMember(const uint8_t* userId);
+
+String userIdBytesToHexString(const uint8_t* userId);

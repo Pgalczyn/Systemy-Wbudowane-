@@ -27,7 +27,8 @@ int apiCall(String method, String endpoint, String payload, String &outResponse)
 
     http.begin(fullUrl);
     http.addHeader("Content-Type", "application/json");
-    http.setTimeout(2000);
+    http.setConnectTimeout(500);
+    http.setTimeout(500);
 
     int httpCode = 0;
     if (method == "GET") {

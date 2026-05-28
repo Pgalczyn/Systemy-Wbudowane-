@@ -3,6 +3,7 @@
 #include "rfid_logic.h"
 #include "telnet_tools.h"
 #include "app_service.h"
+#include <time.h>
 
 ReceptionState currentStep = RX_SHOW_MENU;
 String lastChoice = "";
@@ -12,13 +13,17 @@ String emailBuffer = "";
 int32_t pointsBuffer = 0;
 MembershipState stateBuffer = ACTIVE;
 
+static String cardUid = "";
+
 static PersonalData currentPerson;
 static EmailData currentEmail;
 static ServiceData currentService;
 
-bool preAuthorize(const String &choice);
+bool shouldPreAutorize(const String &choice);
 bool saveDataToCard(const MemberDataResponse &data);
 void printFullCardData(const PersonalData &personal, const EmailData &email, const ServiceData &service);
+void trySynchronizeCard(const MemberDataResponse &apiData);
+String formatTimestamp(uint32_t timestamp);
 
 void handleReceptionNonBlocking()
 {
@@ -29,12 +34,11 @@ void handleReceptionNonBlocking()
     }
 
     String input = "";
-    String cardUid;
 
     switch (currentStep)
     {
     case RX_SHOW_MENU:
-        telnetPrintFmt("--- RECEPTION (Choose 1-4) ---\n1. Check, 2. Register, 3. Points, 4. Status\n> ");
+        telnetPrintFmt("--- RECEPTION (Choose 1-5) ---\n1. Check, 2. Register, 3. Points, 4. Status, 5. Extend Validity\n> ");
         currentStep = RX_WAIT_FOR_CHOICE;
         break;
 
@@ -43,7 +47,7 @@ void handleReceptionNonBlocking()
         {
             input.trim();
 
-            if (input == "1")
+            if (input == "1" || input == "5")
             {
                 lastChoice = input;
                 currentStep = RX_WAITING_FOR_CARD_MSG;
@@ -57,13 +61,13 @@ void handleReceptionNonBlocking()
             else if (input == "3")
             {
                 lastChoice = "3";
-                telnetPrintFmt("How many points?: ");
+                telnetPrintFmt("Enter points: ");
                 currentStep = RX_WAIT_FOR_POINTS;
             }
             else if (input == "4")
             {
                 lastChoice = "4";
-                telnetPrintFmt("Status (1=ACT, 0=INA): ");
+                telnetPrintFmt("Enter status (1=ACTIVE, 0=INACTIVE): ");
                 currentStep = RX_WAIT_FOR_STATE;
             }
             else
@@ -129,10 +133,10 @@ void handleReceptionNonBlocking()
         }
         else if (isCardPresent())
         {
-            cardUid = uidToHexString();
+            cardUid = getCardUid();
             telnetPrintFmt("Info: Handling card: %s\n", cardUid.c_str());
 
-            if (preAuthorize(lastChoice))
+            if (shouldPreAutorize(lastChoice))
             {
                 RfidResult personalResult = readPersonalData(currentPerson);
                 RfidResult emailResult = readEmailData(currentEmail);
@@ -158,51 +162,21 @@ void handleReceptionNonBlocking()
 
             if (res != ApiResult::API_OK)
             {
-                telnetPrintFmt("Error: API error. Fallback: Reading data directly from card...\n");
+                telnetPrintFmt("Warning: API error. Fallback: Reading data directly from card...\n");
 
                 ServiceData cardData;
-                RfidResult serviceResult = readServiceData(cardData);
-
-                if (serviceResult == RFID_OK)
+                if (readServiceData(cardData) == RFID_OK)
                 {
                     printFullCardData(currentPerson, currentEmail, cardData);
                 }
                 else
                 {
-                    telnetPrintFmt("Warning: Card data is corrupted (CRC mismatch)!\n");
+                    telnetPrintFmt("Warning: Card data undefined or corrupted!\n");
                 }
             }
             else
             {
-                ServiceData apiServiceData;
-                apiServiceData.points = outData.points;
-                apiServiceData.validUntil = outData.validUntil;
-                apiServiceData.state = (outData.state == ACTIVE) ? 1 : 0;
-
-                uint32_t expectedCrc = calculateCRC32((uint8_t *)&apiServiceData, sizeof(ServiceData) - 4);
-
-                ServiceData cardData;
-                RfidResult serviceResult = readServiceData(cardData);
-
-                if (serviceResult == RFID_OK && cardData.crc == expectedCrc)
-                {
-                    telnetPrintFmt("Success: Card data is consistent with API!\n");
-                    printFullCardData(currentPerson, currentEmail, cardData);
-                }
-                else
-                {
-                    telnetPrintFmt("Warning: Data inconsistent! (CRC Mismatch)\n");
-
-                    if (writeServiceData(apiServiceData) == RFID_OK)
-                    {
-                        telnetPrintFmt("Success: Card was successfully synchronized with API!\n");
-                        printFullCardData(currentPerson, currentEmail, apiServiceData);
-                    }
-                    else
-                    {
-                        telnetPrintFmt("Error: Failed to update card service data.\n");
-                    }
-                }
+                trySynchronizeCard(outData);
             }
 
             stopComm();
@@ -225,9 +199,20 @@ void handleReceptionNonBlocking()
             {
                 telnetPrintFmt("Error: Failed to save data to card.\n");
                 stopComm();
+
+                if (rollbackMember(outData.userId) != ApiResult::API_OK)
+                {
+                    telnetPrintFmt("Error: Failed to rollback member registration.\n");
+                }
+
                 currentStep = RX_SHOW_MENU;
                 return;
             }
+
+            telnetPrintFmt("Info: Member registered successfully!\n");
+            stopComm();
+            currentStep = RX_SHOW_MENU;
+            return;
         }
         else if (lastChoice == "3")
         {
@@ -243,15 +228,15 @@ void handleReceptionNonBlocking()
             {
                 telnetPrintFmt("Info: Points updated. New total in API: %d\n", newTotal);
 
-                ServiceData sData;
-                if (readServiceData(sData) != RFID_OK)
+                ServiceData cardData;
+                if (readServiceData(cardData) != RFID_OK)
                 {
                     telnetPrintFmt("Error: Failed to read card service data.\n");
                 }
                 else
                 {
-                    sData.points = newTotal;
-                    if (writeServiceData(sData) == RFID_OK)
+                    cardData.points = newTotal;
+                    if (writeServiceData(cardData) == RFID_OK)
                     {
                         telnetPrintFmt("Info: Card data updated successfully.\n");
                     }
@@ -261,29 +246,88 @@ void handleReceptionNonBlocking()
                     }
                 }
             }
+            stopComm();
+            currentStep = RX_SHOW_MENU;
+            return;
         }
         else if (lastChoice == "4")
         {
-
             MembershipState actualState = INACTIVE;
 
             ApiResult res = changeMembershipState(currentPerson.userId, stateBuffer, actualState);
 
-            if (res == ApiResult::API_OK)
+            if (res != ApiResult::API_OK)
             {
-                telnetPrintFmt("Info: Successfully updated membership state: %s\n", (actualState == ACTIVE) ? "ACTIVE" : "INACTIVE");
+                telnetPrintFmt("Error: Api error.\n");
             }
             else
             {
-                telnetPrintFmt("Error: Błąd API podczas zmiany statusu (Kod: %d)\n", (int)res);
+                ServiceData cardData;
+                if (readServiceData(cardData) != RFID_OK)
+                {
+                    telnetPrintFmt("Warning: Failed to read card's state.\n");
+                }
+                else
+                {
+                    cardData.state = (actualState == ACTIVE) ? 1 : 0;
+                    if (writeServiceData(cardData) == RFID_OK)
+                    {
+                        telnetPrintFmt("Info: Card data updated successfully.\n");
+                    }
+                    else
+                    {
+                        telnetPrintFmt("Warning: Failed to update card's state.\n");
+                    }
+                }
             }
+
+            stopComm();
+            currentStep = RX_SHOW_MENU;
+            return;
+        }
+        else if (lastChoice == "5")
+        {
+            uint32_t newValidUntil = 0;
+
+            ApiResult res = extendValidity(currentPerson.userId, newValidUntil);
+
+            if (res != ApiResult::API_OK)
+            {
+                telnetPrintFmt("Error: API error while extending validity.\n");
+            }
+            else
+            {
+                telnetPrintFmt("Info: Validity extended. New valid until (timestamp): %s\n", formatTimestamp(newValidUntil).c_str());
+
+                ServiceData cardData;
+                if (readServiceData(cardData) != RFID_OK)
+                {
+                    telnetPrintFmt("Error: Failed to read card service data.\n");
+                }
+                else
+                {
+                    cardData.validUntil = newValidUntil;
+                    if (writeServiceData(cardData) == RFID_OK)
+                    {
+                        telnetPrintFmt("Info: Card data updated successfully.\n");
+                    }
+                    else
+                    {
+                        telnetPrintFmt("Error: Failed to update card service data.\n");
+                    }
+                }
+            }
+
+            stopComm();
+            currentStep = RX_SHOW_MENU;
+            return;
         }
     }
     break;
     }
 }
 
-bool preAuthorize(const String &choice)
+bool shouldPreAutorize(const String &choice)
 {
     return choice != "2";
 }
@@ -326,22 +370,25 @@ bool saveDataToCard(const MemberDataResponse &data)
     return true;
 }
 
-String uidToHexString(const uint8_t userId[16])
+String formatTimestamp(uint32_t timestamp)
 {
-    String userIdHex = "";
-    for (int i = 0; i < 16; i++)
+    time_t rawTime = timestamp;
+    struct tm *timeInfo = localtime(&rawTime);
+
+    if (timeInfo == nullptr)
     {
-        if (userId[i] < 0x10)
-            userIdHex += "0";
-        userIdHex += String(userId[i], HEX);
+        return "Invalid Date";
     }
-    userIdHex.toUpperCase();
-    return userIdHex;
+
+    char buffer[20];
+    strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", timeInfo);
+
+    return String(buffer);
 }
 
 void printFullCardData(const PersonalData &person, const EmailData &email, const ServiceData &service)
 {
-    String userIdHex = uidToHexString(person.userId);
+    String userIdHex = userIdBytesToHexString(person.userId);
 
     telnetPrintFmt("\n========================================\n");
     telnetPrintFmt("          FULL CARD DATA              \n");
@@ -351,6 +398,46 @@ void printFullCardData(const PersonalData &person, const EmailData &email, const
     telnetPrintFmt("Surname        : %s\n", person.surname);
     telnetPrintFmt("Email          : %s\n", email.email);
     telnetPrintFmt("Points         : %d\n", service.points);
-    telnetPrintFmt("Card validity  : %u (Unix Timestamp)\n", service.validUntil);
+    telnetPrintFmt("Card validity  : %s\n", formatTimestamp(service.validUntil).c_str());
+    telnetPrintFmt("Membership state: %s\n", service.state == 1 ? "ACTIVE" : "INACTIVE");
     telnetPrintFmt("========================================\n\n");
+}
+
+void trySynchronizeCard(const MemberDataResponse &apiData)
+{
+    ServiceData apiServiceData;
+    apiServiceData.points = apiData.points;
+    apiServiceData.validUntil = apiData.validUntil;
+    apiServiceData.state = (apiData.state == ACTIVE) ? 1 : 0;
+
+    uint32_t expectedCrc = calculateCRC32((uint8_t *)&apiServiceData, sizeof(ServiceData) - 4);
+
+    ServiceData cardData;
+
+    if (readServiceData(cardData) != RFID_OK)
+    {
+        telnetPrintFmt("Warning: Failed to read card service data for synchronization check.\n");
+        printFullCardData(currentPerson, currentEmail, apiServiceData);
+        return;
+    }
+
+    if (cardData.crc == expectedCrc)
+    {
+        telnetPrintFmt("Success: Card data is consistent with API!\n");
+        printFullCardData(currentPerson, currentEmail, cardData);
+    }
+    else
+    {
+        telnetPrintFmt("Warning: Data inconsistent! (CRC Mismatch)\n");
+
+        if (writeServiceData(apiServiceData) == RFID_OK)
+        {
+            telnetPrintFmt("Success: Card was successfully synchronized with API!\n");
+            printFullCardData(currentPerson, currentEmail, apiServiceData);
+        }
+        else
+        {
+            telnetPrintFmt("Warning: Failed to update card service data.\n");
+        }
+    }
 }

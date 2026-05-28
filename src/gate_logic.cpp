@@ -7,7 +7,8 @@
 // GATE MODE VARIABLES
 GateState gateState = GATE_WAITING_CARD;
 unsigned long gateStateChangeTime = 0;
-String gateCurrentUid = "";
+
+static String cardUid = "";
 
 static PersonalData currentPerson;
 static EmailData currentEmail;
@@ -15,13 +16,14 @@ static ServiceData currentService;
 
 void handleGateLogic()
 {
+    
     switch (gateState)
     {
     case GATE_WAITING_CARD:
         if (isCardPresent())
         {
-            gateCurrentUid = uidToHexString();
-            printf("Card detected: %s\n", gateCurrentUid.c_str());
+            cardUid = getCardUid();
+            printf("Card detected: %s\n", cardUid.c_str());
 
             RfidResult resPersonal = readPersonalData(currentPerson);
             RfidResult resEmail = readEmailData(currentEmail);

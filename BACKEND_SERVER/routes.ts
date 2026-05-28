@@ -8,6 +8,13 @@ function unixSeconds(date: Date) {
     return Math.floor(date.getTime() / 1000);
 }
 
+function toStandardUUID(id: string): string {
+    if (id.length === 32) {
+        return `${id.slice(0, 8)}-${id.slice(8, 12)}-${id.slice(12, 16)}-${id.slice(16, 20)}-${id.slice(20)}`;
+    }
+    return id;
+}
+
 router.post('/register', async (req: Request, res: Response) => {
     const { cardUid, name, surname, email } = req.body;
 
@@ -22,7 +29,8 @@ router.post('/register', async (req: Request, res: Response) => {
         membershipStart: startDate,
         membershipEnd: endDate,
         points: 100,
-        cardUid: cardUid
+        cardUid: cardUid,
+        membershipState: "ACTIVE"
     });
 
     let savedUser;
@@ -36,12 +44,26 @@ router.post('/register', async (req: Request, res: Response) => {
     return res.status(200).json({
         userId: savedUser._id.toString().replace(/-/g, ""),
         validUntil: unixSeconds(endDate),
-        points: savedUser.points
+        points: savedUser.points,
+        status: savedUser.membershipState
     });
 });
 
+router.post('/members/:id/rollback', async (req: Request, res: Response) => {
+    const id: string = toStandardUUID(req.params.id);
+    try {
+        const deletedUser = await User.findByIdAndDelete(id);
+        if (!deletedUser) {
+            return res.status(404).json({ message: "User not found" });
+        }
+        return res.status(200).json({ message: "Rollback successful. User deleted." });
+    } catch (error: any) {
+        return res.status(500).json({ message: "Internal server error: " + error.message });
+    }
+});
+
 router.get('/member/:id', async (req: Request, res: Response) => {
-    const id: string = req.params.id;
+    const id: string = toStandardUUID(req.params.id);
     const gateFlag = String(req.query.gate || "false").toLowerCase() === 'true';
 
     let user;
@@ -101,7 +123,7 @@ router.get('/member/:id', async (req: Request, res: Response) => {
 });
 
 router.put('/member/:id/extend-validity', async (req: Request, res: Response) => {
-    const id: string = req.params.id;
+    const id: string = toStandardUUID(req.params.id);
 
     let user;
     try {
@@ -128,7 +150,7 @@ router.put('/member/:id/extend-validity', async (req: Request, res: Response) =>
 });
 
 router.put('/member/:id/points', async (req: Request, res: Response) => {
-    const id: string = req.params.id;
+    const id: string = toStandardUUID(req.params.id);
     const amount: number = Number(req.body.amount);
 
     if (isNaN(amount)) {
@@ -155,7 +177,7 @@ router.put('/member/:id/points', async (req: Request, res: Response) => {
 });
 
 router.put('/member/:id/state', async (req: Request, res: Response) => {
-    const id: string = req.params.id;
+    const id: string = toStandardUUID(req.params.id);
     const status: any = req.body?.status;
 
     if (!status) {

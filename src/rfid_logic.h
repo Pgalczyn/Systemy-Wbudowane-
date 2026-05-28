@@ -42,7 +42,7 @@ enum RfidResult {
 
 bool isCardPresent();
 void stopComm();
-String uidToHexString();
+String getCardUid();
 
 RfidResult writePersonalData(PersonalData &data);
 RfidResult readPersonalData(PersonalData &data);
