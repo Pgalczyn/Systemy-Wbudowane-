@@ -1,6 +1,7 @@
 #pragma once
 #include <Arduino.h>
 
+
 constexpr byte BLOCK_PERSONAL = 60; // Sector 15
 constexpr byte BLOCK_EMAIL    = 56; // Sector 14
 constexpr byte BLOCK_SERVICE  = 52; // Sector 13
@@ -19,10 +20,11 @@ struct __attribute__((packed)) EmailData {
     uint32_t crc;         // CRC32
 };
 
-// Sector 13: Service and contact data (Exactly 48 bytes = 3 blocks: 52, 53 and 54)
+// Sector 13: Service and contact data (Exactly 13 bytes = 1 block: 52)
 struct __attribute__((packed)) ServiceData {
     uint32_t validUntil;  // 4 bytes
     int32_t points;       // 4 bytes
+    uint8_t state;        // 1 byte  0 = INACTIVE, 1 = ACTIVE
     uint32_t crc;         // 4 bytes CRC32 for the entire structure (excluding this field)
 };
 
@@ -49,3 +51,5 @@ RfidResult readServiceData(ServiceData &data);
 
 RfidResult writeEmailData(EmailData &data);
 RfidResult readEmailData(EmailData &data);
+
+uint32_t calculateCRC32(const uint8_t *data, size_t length);

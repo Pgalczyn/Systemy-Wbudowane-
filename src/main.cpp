@@ -1,6 +1,7 @@
 #include "globals.h"
 #include "wifi_logic.h"
-#include "handlers.h"
+#include "gate_logic.h"
+#include "reception_logic.h"
 #include <Preferences.h>
 #include <telnet_tools.h>
 

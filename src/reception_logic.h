@@ -1,14 +1,3 @@
-
-enum GateState
-{
-    GATE_WAITING_CARD,
-    GATE_PROCESSING,
-    GATE_PREPARE_SUCCESS,
-    GATE_PREPARE_FAILURE,
-    GATE_SUCCESS,
-    GATE_FAILURE
-};
-
 enum ReceptionState
 {
     RX_SHOW_MENU,
@@ -19,11 +8,10 @@ enum ReceptionState
     RX_WAIT_FOR_POINTS,
     RX_WAIT_FOR_STATE,
     RX_WAITING_FOR_CARD_MSG, // Show message once
-    RX_WAIT_FOR_CARD         // Wait for card or cancel
+    RX_WAIT_FOR_CARD,         // Wait for card or cancel
+    RX_EXECUTE_ACTION
 };
 
 extern ReceptionState currentStep;
-
-void handleGateLogic();
 
 void handleReceptionNonBlocking();

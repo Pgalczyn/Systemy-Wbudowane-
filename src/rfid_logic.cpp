@@ -5,7 +5,7 @@ static MFRC522::MIFARE_Key keyPersonal = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 static MFRC522::MIFARE_Key keyService = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 static MFRC522::MIFARE_Key keyEmail = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
-static uint32_t calculateCRC32(const uint8_t *data, size_t length) {
+uint32_t calculateCRC32(const uint8_t *data, size_t length) {
     uint32_t crc = 0xFFFFFFFF;
     for (size_t i = 0; i < length; i++) {
         crc ^= data[i];
