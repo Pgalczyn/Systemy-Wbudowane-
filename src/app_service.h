@@ -3,13 +3,14 @@
 
 enum class ApiResult {
     API_OK,
-    API_ERROR
+    API_ERROR,
+    API_PARSING_ERROR,
 };
 
-enum MembershipState { ACTIVE, INACTIVE };
+enum MembershipState { INACTIVE=0, ACTIVE=1 };
 
 struct RegisterRequest {
-    const uint8_t* userId;
+    String cardUid;
     String name;
     String surname;
     String email;
@@ -23,7 +24,7 @@ struct MemberDataResponse {
 };
 
 ApiResult registerMember(const RegisterRequest &req, MemberDataResponse &outData);
-ApiResult checkMemberData(const uint8_t* userId, MemberDataResponse &outData);
+ApiResult checkMemberData(const uint8_t* userId, MemberDataResponse &outData, bool isGate = false);
 ApiResult extendValidity(const uint8_t* userId, uint32_t &outNewValidUntil);
 ApiResult modifyPoints(const uint8_t* userId, int32_t amount, int32_t &outNewTotal);
 ApiResult changeMembershipState(const uint8_t* userId, MembershipState newState, MembershipState &outActualState);

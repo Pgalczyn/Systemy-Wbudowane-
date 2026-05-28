@@ -2,7 +2,6 @@
 #include "api_client.h"
 #include <ArduinoJson.h>
 
-// Wewnętrzna funkcja pomocnicza: Konwersja tablicy bajtów na String HEX
 static String userIdToHex(const uint8_t* userId) {
     String hex = "";
     for (int i = 0; i < 16; i++) {
@@ -13,7 +12,6 @@ static String userIdToHex(const uint8_t* userId) {
     return hex;
 }
 
-// Wewnętrzna funkcja pomocnicza: Konwersja String HEX na tablicę bajtów
 static void hexToUserId(const String& hexStr, uint8_t* outUserId) {
     for (size_t i = 0; i < 16; i++) {
         if (i * 2 + 2 <= hexStr.length()) {
@@ -28,7 +26,7 @@ static void hexToUserId(const String& hexStr, uint8_t* outUserId) {
 ApiResult registerMember(const RegisterRequest &req, MemberDataResponse &outData)
 {
     JsonDocument doc;
-    doc["cardUid"] = req.userId;
+    doc["cardUid"] = req.cardUid;
     doc["name"] = req.name;
     doc["surname"] = req.surname;
     doc["email"] = req.email;
@@ -60,11 +58,14 @@ ApiResult registerMember(const RegisterRequest &req, MemberDataResponse &outData
     return ApiResult::API_ERROR;
 }
 
-ApiResult checkMemberData(const uint8_t* userId, MemberDataResponse &outData)
+ApiResult checkMemberData(const uint8_t* userId, MemberDataResponse &outData, bool isGate)
 {
-    // Konwersja surowego ID na HEX przed wysyłką do API
     String userIdStr = userIdToHex(userId);
-    String resp = apiCall("GET", "/member/" + userIdStr);
+    String url = "/member/" + userIdStr;
+    if (isGate) {
+        url += "?gate=true";
+    }
+    String resp = apiCall("GET", url);
 
     if (resp.startsWith("ERROR") || resp.length() == 0) {
         return ApiResult::API_ERROR;
@@ -75,7 +76,7 @@ ApiResult checkMemberData(const uint8_t* userId, MemberDataResponse &outData)
         return ApiResult::API_ERROR;
     }
 
-    if (doc["allowed"] == true || doc["success"] == true) {
+    if (doc["success"] == true) {
         outData.validUntil = doc["validUntil"] | 0;
         outData.points = doc["points"] | 0;
         String stateStr = doc["status"] | "INACTIVE";

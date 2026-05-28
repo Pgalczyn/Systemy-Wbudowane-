@@ -29,6 +29,7 @@ void handleReceptionNonBlocking()
     }
 
     String input = "";
+    String cardUid;
 
     switch (currentStep)
     {
@@ -128,8 +129,8 @@ void handleReceptionNonBlocking()
         }
         else if (isCardPresent())
         {
-            String uid = uidToHexString();
-            telnetPrintFmt("Info: Handling card: %s\n", uid.c_str());
+            cardUid = uidToHexString();
+            telnetPrintFmt("Info: Handling card: %s\n", cardUid.c_str());
 
             if (preAuthorize(lastChoice))
             {
@@ -209,7 +210,7 @@ void handleReceptionNonBlocking()
         }
         else if (lastChoice == "2")
         {
-            RegisterRequest req = {currentPerson.userId, nameBuffer, surnameBuffer, emailBuffer};
+            RegisterRequest req = {cardUid, nameBuffer, surnameBuffer, emailBuffer};
             MemberDataResponse outData;
             ApiResult res = registerMember(req, outData);
             if (res != ApiResult::API_OK)
@@ -236,7 +237,7 @@ void handleReceptionNonBlocking()
 
             if (res != ApiResult::API_OK)
             {
-                telnetPrintFmt("Error: API error while modifying points (Code: %d)\n", (int)res);
+                telnetPrintFmt("Error: API error while modifying points.\n");
             }
             else
             {
