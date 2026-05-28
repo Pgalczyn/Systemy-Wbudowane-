@@ -4,3 +4,4 @@
 .vscode/launch.json
 .vscode/ipch
 /BACKEND_SERVER/node_modules
+node_modules
