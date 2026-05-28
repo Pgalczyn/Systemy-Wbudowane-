@@ -140,3 +140,31 @@ LogScanResult logGymScan(String card_UID){
     result.success = true;
     return result;
 }
+
+ExtendMembershipResult extendMembership(String cardUid, int months)
+{
+    ExtendMembershipResult result = {false, "", ""};
+
+    String endpoint = "/extend/membership/" + cardUid + "/" + String(months);
+    String resp = apiCall("POST", endpoint);
+
+    if (resp.startsWith("ERROR") || resp.indexOf("error") != -1 || resp.indexOf("success") == -1) {
+        result.errorMessage = "Server rejected extension or connection failed.";
+        return result;
+    }
+
+    JsonDocument respDoc;
+    DeserializationError error = deserializeJson(respDoc, resp);
+
+    if (!error && respDoc["status"] == "success") {
+        JsonObject user = respDoc["user"];
+        result.newMembershipStarts = user["gymMembershipStarts"].as<String>();
+        result.newMembershipEnds = user["gymMembershipEnds"].as<String>();
+        result.coffeePoints = user["coffeePoints"];
+        result.success = true;
+    } else {
+        result.errorMessage = "Failed to parse updated user data from server.";
+    }
+
+    return result;
+}

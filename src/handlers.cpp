@@ -15,6 +15,7 @@ String lastChoice = "";
 String nameBuffer = "";
 String surnameBuffer = "";
 String emailBuffer = "";
+int32_t monthsBuffer = 0;
 int32_t pointsBuffer = 0;
 MembershipState stateBuffer = INACTIVE;
 
@@ -230,6 +231,17 @@ void handleReceptionNonBlocking()
                     telnetPrintFmt("Błąd zmiany statusu: %s\n", res.errorMessage.c_str());
                 }
             }
+            else if (lastChoice == "5") {
+                            ExtendMembershipResult res = extendMembership(uid, monthsBuffer);
+
+                            if (res.success) {
+                                writeStateToCard(res.coffeePoints, res.newMembershipStarts, res.newMembershipEnds, ACTIVE);
+
+                                telnetPrintFmt("Sukces! Karnet przedłużony. Nowa data wygaśnięcia to: %s\n", res.newMembershipEnds.c_str());
+                            } else {
+                                telnetPrintFmt("Błąd przedłużania karnetu: %s\n", res.errorMessage.c_str());
+                            }
+                        }
 
             stopComm();
             currentStep = RX_SHOW_MENU;

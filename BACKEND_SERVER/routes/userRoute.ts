@@ -286,4 +286,38 @@ router.get("/getUserData/:card_UID/", async (req: Request, res: Response) => {
     }
 });
 
+router.post("/extend/membership/:card_UID/:months", verifyGymMembership, async (req: Request, res: Response) => {
+    try {
+        const user = res.locals.user as IUser;
+        const monthsToAdd: number = Number(req.params.months);
+
+        if (isNaN(monthsToAdd) || monthsToAdd <= 0) {
+            return res.status(400).json({
+                status: "error",
+                message: "Months parameter must be a positive number."
+            });
+        }
+
+        const currentEndDate = new Date(user.gymMembershipEnds);
+
+        currentEndDate.setMonth(currentEndDate.getMonth() + monthsToAdd);
+
+        user.gymMembershipEnds = currentEndDate;
+
+        await user.save();
+
+        return res.status(200).json({
+            status: "success",
+            message: `Membership extended by ${monthsToAdd} month(s).`,
+            user: user
+        });
+
+    } catch (err: any) {
+        return res.status(500).json({
+            status: "error",
+            message: "Internal server error: " + err.message
+        });
+    }
+});
+
 export default router;

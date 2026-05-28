@@ -37,9 +37,17 @@ struct LogScanResult {
     bool success;
     String errorMessage;
 };
+struct ExtendMembershipResult {
+    bool success;
+    String errorMessage;
+    String newMembershipStarts;
+    String newMembershipEnds;
+    int32_t coffeePoints;
+};
 
 RegisterResult registerMember(String cardUid, String name, String surname, String email);
 MemberDataResult getMemberData(String cardUid);
 StateChangeResult changeMembershipState(String cardUid, MembershipState newState);
 ModifyPointsResult modifyPoints(String card_UID, int32_t amount);
 LogScanResult logGymScan(String card_UID);
+ExtendMembershipResult extendMembership(String cardUid, int months);
