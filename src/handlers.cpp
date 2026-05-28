@@ -203,10 +203,11 @@ void handleReceptionNonBlocking()
                 }
             }
             else if (lastChoice == "2") {
-                RegisterResult res = registerMember(uid, nameBuffer, surnameBuffer, "2026-05-28", "2027-05-28", emailBuffer, "0");
+                RegisterResult res = registerMember(uid, nameBuffer, surnameBuffer, emailBuffer);
 
                 if (res.success) {
-                    writeRegistrationToCard(nameBuffer, surnameBuffer, emailBuffer, "2026-05-28", "2027-05-28", 0);
+                    writeRegistrationToCard(nameBuffer, surnameBuffer, emailBuffer, res.gymMembershipStarts,res.gymMembershipEnds, 
+                        res.coffeePoints);
                 } else {
                     telnetPrintFmt("Rejestracja odrzucona przez serwer: %s\n", res.errorMessage.c_str());
                 }

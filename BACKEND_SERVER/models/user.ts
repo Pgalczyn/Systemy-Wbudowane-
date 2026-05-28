@@ -30,14 +30,21 @@ const UserSchema = new Schema({
     gymMembershipStarts: {
         type:Date,
         required: true,
+        default: Date.now
     },
     gymMembershipEnds: {
-        type:Date,
-        required: true
+        type: Date,
+        required: true,
+        default: () => {
+            const date = new Date();
+            date.setMonth(date.getMonth() + 3);
+            return date;
+        }
     },
     coffeePoints: {
         type: Number,
         required: true,
+        default: 1000
     },
     card_UID: {
         type: String,

@@ -2,31 +2,47 @@
 #include "api_client.h"
 #include <ArduinoJson.h>
 
-RegisterResult registerMember(String cardUid, String name, String surname, String gymMembershipStarts, String gymMembershipEnds, String email, String coffeePoints)
+RegisterResult registerMember(String cardUid, String name, String surname, String email)
 {
-    RegisterResult result = {false, ""};
+    // Inicjalizacja struktury zerami/pustymi stringami
+    RegisterResult result = {false, "", "", "", 0};
+    
     JsonDocument doc;
-
     doc["name"] = name;
     doc["surname"] = surname;
     doc["email"] = email;
     doc["card_UID"] = cardUid;
-    doc["gymMembershipStarts"] = gymMembershipStarts;
-    doc["gymMembershipEnds"] = gymMembershipEnds;
-    doc["coffeePoints"] = 1000;
 
     String payload;
     serializeJson(doc, payload);
 
     String resp = apiCall("POST", "/register", payload);
 
+    // Wstępne sprawdzenie, czy odpowiedź nie jest błędem HTTP
     if (resp.indexOf("success") == -1) {
         result.errorMessage = "Server rejected registration or connection failed.";
         return result;
     }
 
-    result.success = true;
-    return result;
+    // --- PARSOWANIE ODPOWIEDZI ---
+    JsonDocument respDoc;
+    DeserializationError error = deserializeJson(respDoc, resp);
+    
+    if (!error && respDoc["status"] == "success") {
+        // Dobieramy się do obiektu "user", który odesłał backend
+        JsonObject user = respDoc["user"];
+        
+        // Zapisujemy wygenerowane przez backend dane do naszej struktury
+        result.gymMembershipStarts = user["gymMembershipStarts"].as<String>();
+        result.gymMembershipEnds = user["gymMembershipEnds"].as<String>();
+        result.coffeePoints = user["coffeePoints"];
+        
+        result.success = true;
+    } else {
+        result.errorMessage = "Failed to parse user data from server.";
+    }
+
+    return result; 
 }
 
 MemberDataResult getMemberData(String cardUid)

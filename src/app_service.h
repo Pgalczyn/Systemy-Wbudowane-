@@ -6,6 +6,9 @@ enum MembershipState { ACTIVE = 1, INACTIVE = 0};
 struct RegisterResult {
     bool success;
     String errorMessage;
+    String gymMembershipStarts;
+    String gymMembershipEnds;
+    int32_t coffeePoints;
 };
 
 struct MemberDataResult {
@@ -35,8 +38,7 @@ struct LogScanResult {
     String errorMessage;
 };
 
-// ZAKTUALIZOWANE DEKLARACJE FUNKCJI
-RegisterResult registerMember(String cardUid, String name, String surname, String gymMembershipStarts, String gymMembershipEnds, String email, String coffeePoints);
+RegisterResult registerMember(String cardUid, String name, String surname, String email);
 MemberDataResult getMemberData(String cardUid);
 StateChangeResult changeMembershipState(String cardUid, MembershipState newState);
 ModifyPointsResult modifyPoints(String card_UID, int32_t amount);
