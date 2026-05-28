@@ -34,7 +34,7 @@ router.post('/register', async (req: Request, res: Response) => {
     }
 
     return res.status(200).json({
-        userId: savedUser._id.toString(),
+        userId: savedUser._id.toString().replace(/-/g, ""),
         validUntil: unixSeconds(endDate),
         points: savedUser.points
     });
@@ -93,7 +93,7 @@ router.get('/member/:id', async (req: Request, res: Response) => {
     }
 
     return res.status(200).json({
-        userId: user._id.toString(),
+        userId: user._id.toString().replace(/-/g, ""),
         validUntil: unixSeconds(new Date(user.membershipEnd)),
         points: user.points,
         status: status
