@@ -99,7 +99,7 @@ router.get('/member/:id', async (req: Request, res: Response) => {
             } catch (err: any) {
                 return res.status(500).json({ message: "Internal server error: " + err.message });
             }
-        } else {
+        } else if (status === "ACTIVE") {
             const newSession = new GymSession({
                 user: String(user._id),
                 enterTime: now,
